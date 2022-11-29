@@ -1,3 +1,5 @@
+// noinspection JSUnusedGlobalSymbols,JSUnresolvedFunction
+
 /**
  * 学习和编写 tampermonkey 脚本时常用的函数
  */
@@ -10,6 +12,26 @@ function print(...args) {
     console.log(...args);
 }
 
+
+/**
+ * 解析链接
+ * @param value
+ * @returns {{}}
+ */
+function parseURL(value) {
+    let url = new URL(value)
+    let params = new URLSearchParams(url.searchParams)
+    let obj = {}
+    params = Object.fromEntries(params)
+    obj.protocol = url.protocol
+    obj.hostname = url.hostname
+    obj.port = url.port
+    obj.pathname = url.pathname
+    obj.search = params
+    obj.hash = url.hash
+    return obj
+}
+
 /**
  * html字符串 转 document 对象
  * @param value
@@ -18,11 +40,49 @@ function print(...args) {
 function text2document(value) {
     let doc;
     try {
-        doc = document.implementation.createHTMLDocument("");
-        doc.documentElement.innerHTML = value;
+
+        /*
+        创建 Document 的两种方法
+        1.
+        new DOMParser().parseFromString(string, mimeType)
+        mimeType	            doc.constructor
+        text/html	            Document
+        text/xml	            XMLDocument
+        application/xml	        XMLDocument
+        application/xhtml+xml   XMLDocument
+        image/svg+xml	        XMLDocument
+
+        2.
+        let document.implementation.createHTMLDocument("");
+        doc.documentElement.innerHTML = html_str;
+        */
+        // doc = document.implementation.createHTMLDocument("");
+        // doc.documentElement.innerHTML = value;
+        doc = new DOMParser().parseFromString(value, "text/html");
     } catch (error) {
         throw error;
     }
+    return doc;
+}
+
+/**
+ * xhr 响应转 document 对象
+ * @param value
+ * @returns {Document}
+ */
+function response2document(value) {
+    let doc;
+    let {finalUrl, responseText,} = value;
+    doc = text2document(responseText);
+    let base = doc.querySelector("head > base");
+    if (!base) {
+        let url = parseURL(finalUrl);
+        base = document.createElement("base");
+        let base_url = `${url.protocol}//${url.hostname}/`;
+        base.setAttribute("href", base_url);
+        doc.head.appendChild(base)
+    }
+    doc.href = finalUrl;
     return doc;
 }
 
@@ -38,7 +98,7 @@ async function asyncPool(limit, arr, func, ...args) {
     // 所有任务
     const all = [];
     // 预先执行的任务
-    const executings = [];
+    const executing = [];
     for (const item of arr) {
         let promise = Promise.resolve().then(function () {
             return func(item, ...args);
@@ -51,19 +111,19 @@ async function asyncPool(limit, arr, func, ...args) {
         }
         let wrap = promise.then(function (v) {
             // 完成后将自身从正在执行的数组中移除
-            executings.splice(executings.indexOf(wrap), 1)
+            executing.splice(executing.indexOf(wrap), 1)
             return v;
         });
-        executings.push(wrap);
-        if (executings.length < limit) {
+        executing.push(wrap);
+        if (executing.length < limit) {
             // 需要执行的数组长度 小于 限制数
             continue;
         }
         // 等待完成其中最先获得结果的一个
-        await Promise.race(executings);
+        await Promise.race(executing);
     }
     // Promise实例 每部分只会执行一次
-    // 如果 Promise实例 先添加到 executings 执行过一次 最后在 Promise.all() 只会得到结果(得到结果)
+    // 如果 Promise实例 先添加到 executing 执行过一次 最后在 Promise.all() 只会得到结果(得到结果)
     return Promise.all(all);
 }
 
@@ -73,8 +133,9 @@ async function asyncPool(limit, arr, func, ...args) {
  * @param arg  参数
  * @returns {Promise<unknown>}
  */
-async function request(href, arg) {
+async function request(href, arg = {}) {
     let {
+        referrer,
         // 超时时间
         timeout, time_out,
         // 重试次数
@@ -83,9 +144,11 @@ async function request(href, arg) {
         overrideMimeType, mime_type,
         // 进度
         onprogress, on_progress
-    } = arg;
+    } = arg || {};
 
+    let _referrer = referrer || location.href
     let _retry_times = retry_times || retryTimes || 3;
+    // noinspection PointlessArithmeticExpressionJS
     let _time_out = timeout || time_out || 10 ** 3 * 60 * 1;
     let _mime_type = overrideMimeType || mime_type || undefined;
     let _on_progress = onprogress || on_progress || undefined;
@@ -111,7 +174,7 @@ async function request(href, arg) {
                 time_out: _time_out,
                 overrideMimeType: _mime_type,
                 headers: {
-                    "referrer": location.href,
+                    "referrer": _referrer,
                     "Cache-Control": "no-cache",
                     "Content-Type": "text/html;charset=" + document.characterSet,
                 },
@@ -164,16 +227,15 @@ async function request(href, arg) {
  * @param options   配置参数
  * @returns {Promise<Document>}
  */
-async function html(href, options) {
-    Object.assign(options, {
+async function html(href, options = {}) {
+    return request(href, Object.assign(options || {}, {
         overrideMimeType: "text/html;charset=" + document.characterSet,
-    })
-    return request(href, options)
-        .then(function (response) {
-            return text2document(response.responseText)
-        }).then(function (doc) {
-            return doc;
-        });
+    })).then(function (res) {
+        // let {status, statusText, finalUrl, response, responseText, responseXML} = res;
+        return response2document(res);
+    }).then(function (doc) {
+        return doc;
+    });
 }
 
 /**
@@ -182,9 +244,8 @@ async function html(href, options) {
  * @param options   配置参数
  * @returns {Promise<*>}
  */
-async function stream(href, options) {
-    Object.assign(options, {
+async function stream(href, options = {}) {
+    return request(href, Object.assign(options || {}, {
         overrideMimeType: "text/plain; charset=x-user-defined",
-    })
-    return request(href, options);
+    }));
 }
