@@ -143,10 +143,15 @@ async function request(href, arg) {
             }
         })
     }
-    
+
     return retry(run, _retry_times);
 }
 
+/**
+ * 请求 指定页面 的源码
+ * @param href
+ * @returns {Promise<Document>}
+ */
 async function html(href,) {
     return request(href, {
         overrideMimeType: "text/html;charset=" + document.characterSet,
@@ -158,6 +163,11 @@ async function html(href,) {
     });
 }
 
+/**
+ * 请求 指定资源的 字节流
+ * @param href
+ * @returns {Promise<*>}
+ */
 async function stream(href) {
     return request(href, {
         overrideMimeType: "text/plain; charset=x-user-defined",
