@@ -81,11 +81,14 @@ async function request(href, arg) {
         retry_times, retryTimes,
         // 覆盖发送给服务器的头部,强制 text/xml 作为 mime-type
         overrideMimeType, mime_type,
+        // 进度
+        onprogress, on_progress
     } = arg;
 
     let _retry_times = retry_times || retryTimes || 3;
     let _time_out = timeout || time_out || 10 ** 3 * 60 * 1;
     let _mime_type = overrideMimeType || mime_type || undefined;
+    let _on_progress = onprogress || on_progress || undefined;
 
     /**
      * 发起请求
@@ -116,6 +119,14 @@ async function request(href, arg) {
                 onabort: on_failure,
                 onerror: on_failure,
                 ontimeout: on_failure,
+                onprogress: function (event) {
+                    if (!event.lengthComputable) {
+                        return;
+                    }
+                    let loaded = event.loaded;
+                    let total = event.total;
+                    _on_progress && _on_progress(loaded, total)
+                },
             };
             GM_xmlhttpRequest(request_body);
         })
@@ -123,8 +134,8 @@ async function request(href, arg) {
 
     /**
      * 失败后重试
-     * @param func
-     * @param times
+     * @param func  需要包装的函数
+     * @param times 最大重试次数
      * @returns {Promise<unknown>}
      */
     function retry(func, times) {
@@ -149,27 +160,31 @@ async function request(href, arg) {
 
 /**
  * 请求 指定页面 的源码
- * @param href
+ * @param href      链接地址
+ * @param options   配置参数
  * @returns {Promise<Document>}
  */
-async function html(href,) {
-    return request(href, {
+async function html(href, options) {
+    Object.assign(options, {
         overrideMimeType: "text/html;charset=" + document.characterSet,
-    }).then(function (response) {
-        return text2document(response.responseText)
-    }).then(function (doc) {
-        print(doc);
-        return doc;
-    });
+    })
+    return request(href, options)
+        .then(function (response) {
+            return text2document(response.responseText)
+        }).then(function (doc) {
+            return doc;
+        });
 }
 
 /**
  * 请求 指定资源的 字节流
- * @param href
+ * @param href      链接地址
+ * @param options   配置参数
  * @returns {Promise<*>}
  */
-async function stream(href) {
-    return request(href, {
+async function stream(href, options) {
+    Object.assign(options, {
         overrideMimeType: "text/plain; charset=x-user-defined",
-    });
+    })
+    return request(href, options);
 }
