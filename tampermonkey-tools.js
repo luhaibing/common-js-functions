@@ -244,99 +244,19 @@ async function stream(value, options = {}) {
     let {href, file} = typeof value == "string" ? {href: value, file: undefined} : value;
     return request(href, Object.assign(options || {}, {
         overrideMimeType: "text/plain; charset=x-user-defined",
-    })).then(function (res) {
-        return [res, file]
-    });
+    }));
 }
 
-/**
- *
- */
-class Entry {
 
-    constructor(href, file, type) {
-        this.href = href;
-        this.file = file;
-        this.type = type;
-    }
-
-    /*
-    static v(href, file = null) {}
-    static p(href, file = null) {}
-    */
-
-    static mp4(href, name = null) {
-        return new Entry(href, `${name}.mp4`, "video/mp4");
-    }
-
-    static rmvb(href, name = null) {
-        return new Entry(href, `${name}.rmvb`, "video/mp4");
-    }
-
-    static jpg(href, name = null) {
-        return new Entry(href, `${name}.jpg`, "image/jpeg");
-    }
-
-    static png(href, name = null) {
-        return new Entry(href, `${name}.png`, "image/jpeg");
-    }
-
-    static webp(href, name = null) {
-        return new Entry(href, `${name}.webp`, "image/jpeg");
-    }
-
-}
-
-// 有效字符串
-function isValidStr(value) {
-    return typeof value == "string" ? value.trim() : false;
-}
-
-class Resource {
-    // 作者
-    constructor(arg) {
-        let {href, title, code, cover, star, photos, tags} = arg || {};
-        if (!href) {
-            throw "href can not be null or undefined."
+Promise.prototype.toUint8Array = function () {
+    return this.then(function (res) {
+        let r = res.responseText
+        let data = new Uint8Array(r.length)
+        let i = 0;
+        while (i < r.length) {
+            data[i] = r.charCodeAt(i);
+            i++;
         }
-        if (!isValidStr(code) && !isValidStr(title)) {
-            // 不能同时为空
-            throw "code and title cannot be both empty string."
-        }
-
-        cover == null || cover == undefined || typeof cover == "string"
-
-        this.href = href && href.trim();
-        this.title = title;
-        this.code = code;
-        this.cover = cover;
-        this.star = star;
-        this.photos = photos;
-        this.tags = tags;
-
-    }
-
-    json() {
-        return JSON.stringify(this);
-    }
-
-    zip() {
-        let entries = [];
-
-        let entry = Entry();
-    }
-
+        return data;
+    })
 }
-
-/**
- * Zip任务
- */
-class ZipRes {
-
-    constructor(name, es, res) {
-        this.name = `${name}.zip`;
-        this.entries = es;
-    }
-
-}
-
