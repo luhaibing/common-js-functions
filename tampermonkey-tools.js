@@ -247,16 +247,36 @@ async function stream(value, options = {}) {
     }));
 }
 
-
-Promise.prototype.toUint8Array = function () {
+/**
+ * xhr响应 转 字节数组
+ * @returns {Promise<Uint8Array>}
+ */
+Promise.prototype.response2array = function () {
     return this.then(function (res) {
-        let r = res.responseText
-        let data = new Uint8Array(r.length)
+        let {responseText} = res;
+        if (!responseText) {
+            // response 转化 Uint8Array 失败
+            throw "response translating Uint8Array failed."
+        }
+        let data = new Uint8Array(responseText.length)
         let i = 0;
         while (i < r.length) {
             data[i] = r.charCodeAt(i);
             i++;
         }
         return data;
-    })
+    });
+}
+
+/**
+ * 是否可迭代
+ * @param obj
+ * @returns {boolean}
+ */
+function isIterable(obj) {
+    // checks for null and undefined
+    if (obj == null) {
+        return false;
+    }
+    return typeof obj[Symbol.iterator] === 'function';
 }
