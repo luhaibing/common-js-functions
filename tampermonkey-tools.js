@@ -253,15 +253,15 @@ async function stream(value, options = {}) {
  */
 Promise.prototype.response2array = function () {
     return this.then(function (res) {
-        let {responseText} = res;
-        if (!responseText) {
+        let {responseText: read} = res;
+        if (!read) {
             // response 转化 Uint8Array 失败
             throw "response translating Uint8Array failed."
         }
-        let data = new Uint8Array(responseText.length)
+        let data = new Uint8Array(read.length)
         let i = 0;
-        while (i < r.length) {
-            data[i] = r.charCodeAt(i);
+        while (i < read.length) {
+            data[i] = read.charCodeAt(i);
             i++;
         }
         return data;
