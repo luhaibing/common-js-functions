@@ -1,5 +1,3 @@
-// noinspection JSUnusedGlobalSymbols,JSUnresolvedFunction
-
 /**
  * 学习和编写 tampermonkey 脚本时常用的函数
  */
@@ -15,21 +13,21 @@ function print(...args) {
 
 /**
  * 解析链接
- * @param value
+ * @param value 链接
  * @returns {{}}
  */
 function parseURL(value) {
-    let url = new URL(value)
-    let params = new URLSearchParams(url.searchParams)
-    let obj = {}
-    params = Object.fromEntries(params)
-    obj.protocol = url.protocol
-    obj.hostname = url.hostname
-    obj.port = url.port
-    obj.pathname = url.pathname
-    obj.search = params
-    obj.hash = url.hash
-    return obj
+    let url = new URL(value);
+    let params = new URLSearchParams(url.searchParams);
+    let obj = {};
+    params = Object.fromEntries(params);
+    obj.protocol = url.protocol;
+    obj.hostname = url.hostname;
+    obj.port = url.port;
+    obj.pathname = url.pathname;
+    obj.search = params;
+    obj.hash = url.hash;
+    return obj;
 }
 
 /**
@@ -40,7 +38,6 @@ function parseURL(value) {
 function text2document(value) {
     let doc;
     try {
-
         /*
         创建 Document 的两种方法
         1.
@@ -65,24 +62,24 @@ function text2document(value) {
     return doc;
 }
 
+
 /**
  * xhr 响应转 document 对象
  * @param value
  * @returns {Document}
  */
 function response2document(value) {
-    let doc;
     let {finalUrl, responseText,} = value;
-    doc = text2document(responseText);
-    let base = doc.querySelector("head > base");
-    if (!base) {
-        let url = parseURL(finalUrl);
-        base = document.createElement("base");
-        let base_url = `${url.protocol}//${url.hostname}/`;
-        base.setAttribute("href", base_url);
-        doc.head.appendChild(base)
-    }
+    let doc = text2document(responseText);
     doc.href = finalUrl;
+    let node = doc.querySelector("head > base");
+    if (!node) {
+        let {protocol, hostname} = parseInt(finalUrl);
+        node = (doc ?? document).createElement("base");
+        let base_url = `${protocol}//${hostname}/`;
+        node.setAttribute("href", base_url);
+        doc.head.appendChild(node)
+    }
     return doc;
 }
 
@@ -95,6 +92,7 @@ function response2document(value) {
  * @returns {Promise<Awaited<unknown>[]>}
  */
 async function asyncPool(limit, arr, func, ...args) {
+
     // 所有任务
     const all = [];
     // 预先执行的任务
@@ -128,25 +126,61 @@ async function asyncPool(limit, arr, func, ...args) {
 }
 
 /**
- * 使用 XHR 创建 网络请求 和 IO
- * @param href 链接
- * @param arg  参数
- * @returns {Promise<unknown>}
+ *
+ * @param href
+ * @param method
+ * @param data
+ * @param params
+ * @param headers
+ * @param timeout
+ * @param retrytimes
+ * @param options
+ * @returns {Promise<*>}
  */
-async function request(href, arg = {}) {
+function request(
+    href,
+    method = "GET",
+    data = {},
+    params = {},
+    headers = {},
+    timeout = 10 ** 3 * 60 * 1,
+    retrytimes = 3,
+    options = {},
+) {
+    method = method ? method.toUpperCase().trim() : "GET";
+    if (!href || !["GET", "POST"].includes(method)) {
+        return;
+    }
+    if (isObject(data)) {
+        data = Object.keys(data).map(function (key) {
+            let value = encodeURIComponent(data[key]);
+            return `${key}=${value}`;
+        }).join("&");
+    }
+    let _params = {...params};
+    delete _params.headers;
+    if (method === "GET") {
+        params.responseType = params.responseType ?? "document";
+        if (data) {
+            let joiner = "?";
+            if (href.includes("?")) {
+                joiner = href.endsWith("?") || href.endsWith("&") ? "" : "&";
+            }
+            href = `${href}${joiner}${data}`;
+        }
+    } else if (method === "POST") {
+        params.responseType = params.responseType ?? "json";
+        headers = Object.assign(headers || {}, {
+            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+        });
+    }
     let {
-        referrer, // 超时时间
-        timeout, time_out, // 重试次数
-        retry_times, retryTimes, // 覆盖发送给服务器的头部,强制 text/xml 作为 mime-type
-        overrideMimeType, mime_type, // 进度
-        onprogress, on_progress
-    } = arg || {};
+        onprogress, on_progress,   // 进度
+    } = options || {};
 
-    let _referrer = referrer || location.href
-    let _retry_times = retry_times || retryTimes || 3;
     // noinspection PointlessArithmeticExpressionJS
-    let _time_out = timeout || time_out || 10 ** 3 * 60 * 1;
-    let _mime_type = overrideMimeType || mime_type || undefined;
+    let _timeout = timeout || 10 ** 3 * 60 * 1;
+    let _retrytimes = retrytimes || 3;
     let _on_progress = onprogress || on_progress || undefined;
 
     /**
@@ -164,16 +198,12 @@ async function request(href, arg = {}) {
                 print("reqTime : ", (new Date() - start_time), " ; ", href);
                 reject(reason);
             };
-            let request_body = {
+            let request_body = Object.assign(_params || {}, {
                 url: href,
-                method: "GET",
-                time_out: _time_out,
-                overrideMimeType: _mime_type,
-                headers: {
-                    "referrer": _referrer,
-                    "Cache-Control": "no-cache",
-                    "Content-Type": "text/html;charset=" + document.characterSet,
-                },
+                method: method,
+                timeout: _timeout,
+                headers: headers,
+                data,
                 onload: on_success,
                 onabort: on_failure,
                 onerror: on_failure,
@@ -184,9 +214,11 @@ async function request(href, arg = {}) {
                     }
                     let loaded = event.loaded;
                     let total = event.total;
-                    _on_progress && _on_progress(loaded, total)
+                    // _on_progress && _on_progress(loaded, total,)
+                    // _on_progress?.call(this, loaded, total,)
+                    _on_progress?.(loaded, total,)
                 },
-            };
+            })
             GM_xmlhttpRequest(request_body);
         })
     }
@@ -211,22 +243,43 @@ async function request(href, arg = {}) {
                     }
                 }
             }
-        })
+        });
     }
 
-    return retry(run, _retry_times);
+    return retry(run, _retrytimes);
 }
+
 
 /**
  * 请求 指定页面 的源码
- * @param href      链接地址
+ * @param value      链接地址
+ * @param timeout
+ * @param retrytimes
  * @param options   配置参数
  * @returns {Promise<Document>}
  */
-async function html(href, options = {}) {
-    return request(href, Object.assign(options || {}, {
-        overrideMimeType: "text/html;charset=" + document.characterSet,
-    })).then(function (res) {
+async function html(
+    value,
+    timeout = 10 ** 3 * 60 * 1,
+    retrytimes = 3,
+    options = {},
+) {
+    return request(
+        value,
+        "GET",
+        undefined,
+        {
+            "overrideMimeType": "text/html;charset=" + document.characterSet,
+        },
+        {
+            "referrer": location.href,
+            "Cache-Control": "no-cache",
+            "Content-Type": "text/html;charset=" + document.characterSet,
+        },
+        timeout,
+        retrytimes,
+        options,
+    ).then(function (res) {
         // let {status, statusText, finalUrl, response, responseText, responseXML} = res;
         return response2document(res);
     }).then(function (doc) {
@@ -237,15 +290,54 @@ async function html(href, options = {}) {
 /**
  * 请求 指定资源的 字节流
  * @param value      链接地址
+ * @param timeout
+ * @param retrytimes
  * @param options   配置参数
  * @returns {Promise<*>}
  */
-async function stream(value, options = {}) {
-    let {href, file} = typeof value == "string" ? {href: value, file: undefined} : value;
-    return request(href, Object.assign(options || {}, {
-        overrideMimeType: "text/plain; charset=x-user-defined",
-    }));
+async function stream(
+    value,
+    timeout = 10 ** 3 * 60 * 1,
+    retrytimes = 3,
+    options = {},
+) {
+    let {href} = typeof value == "string" ? {href: value,} : value;
+    return request(
+        href,
+        "GET",
+        undefined,
+        {
+            "overrideMimeType": "text/plain; charset=x-user-defined",
+        },
+        {
+            "referrer": location.href,
+            "Cache-Control": "no-cache",
+            "Content-Type": "text/html;charset=" + document.characterSet,
+        },
+        timeout,
+        retrytimes,
+        options,
+    );
 }
+
+
+async function translate(word) {
+    const st = encodeURIComponent(word.trim());
+    const res = await request(
+        "https://www.google.com/async/translate?vet=12ahUKEwixq63V3Kn3AhUCJUQIHdMJDpkQqDh6BAgCECw..i&ei=CbNjYvGCPYLKkPIP05O4yAk&yv=3",
+        "POST",
+        {
+            "async": `translate,sl:auto,tl:zh-CN,st:${st},id:1650701080679,qc:true,ac:false,_id:tw-async-translate,_pms:s,_fmt:pc`,
+        },
+        {
+            "responseType": "",
+        }
+    ).then(function (res) {
+        return response2document(res);
+    });
+    return res?.querySelector("#tw-answ-target-text")?.textContent ?? "";
+}
+
 
 /**
  * xhr响应 转 字节数组
@@ -253,17 +345,17 @@ async function stream(value, options = {}) {
  */
 Promise.prototype.response2array = function () {
     return this.then(function (res) {
-        // let r = res.responseText
-        let {responseText: r} = res;
-        if (!r) {
+        // let responseText = res.responseText
+        let {responseText} = res;
+        if (!responseText) {
             // response 转化 Uint8Array 失败
             throw "response translating Uint8Array failed."
         }
-        let data = new Uint8Array(r.length)
-        let i = 0;
-        while (i < r.length) {
-            data[i] = r.charCodeAt(i);
-            i++;
+        let data = new Uint8Array(responseText.length)
+        let index = 0;
+        while (index < responseText.length) {
+            data[index] = responseText.charCodeAt(index);
+            index++;
         }
         return data;
     });
@@ -275,9 +367,10 @@ Promise.prototype.response2array = function () {
  * @returns {boolean}
  */
 function isIterable(obj) {
-    // checks for null and undefined
-    if (obj == null) {
-        return false;
-    }
-    return typeof obj[Symbol.iterator] === 'function';
+    return obj && typeof obj[Symbol.iterator] === 'function';
 }
+
+function isObject(obj) {
+    return obj && Object.prototype.toString.call(obj) === "[object Object]";
+}
+
