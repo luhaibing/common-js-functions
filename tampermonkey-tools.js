@@ -362,6 +362,14 @@ Promise.prototype.response2array = function () {
 }
 
 /**
+ * NodeList 转 Array(数组)
+ * @returns {Node[]}
+ */
+NodeList.prototype.toArray = function () {
+    return Array.from(this);
+}
+
+/**
  * 是否可迭代
  * @param obj
  * @returns {boolean}
