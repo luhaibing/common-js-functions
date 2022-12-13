@@ -378,7 +378,95 @@ function isIterable(obj) {
     return obj && typeof obj[Symbol.iterator] === 'function';
 }
 
+/**
+ * 是否为对象
+ * @param obj
+ * @returns {boolean}
+ */
 function isObject(obj) {
     return obj && Object.prototype.toString.call(obj) === "[object Object]";
 }
 
+/**
+ * 创建 Button
+ * @param text
+ * @param func
+ * @param style
+ * @param attributes
+ * @returns {HTMLButtonElement}
+ */
+function button(text, func, style = null, attributes = null) {
+    // 创建按钮
+    let button_node = document.createElement('button');
+    // 按钮设置 class
+    if (attributes) {
+        Object.keys(attributes).forEach(function (k) {
+            let v = attributes[k];
+            button_node.setAttribute(k, v);
+        });
+    }
+    // 设置文本和事件
+    button_node.innerHTML = text;
+    button_node.onclick = func;
+    // 页面主题添加 按钮(当前未设置样式)
+    document.body.appendChild(button_node);
+
+    if (!style) {
+        function default_button_class_name() {
+            let random_code = Math.floor(Math.random() * 10 ** 10);
+            return `button${random_code}`;
+        }
+
+        function default_style(class_name) {
+            return `.${class_name}{
+                position:fixed;
+                right:5%;
+                top:15%;
+                width: 55px;
+                height: 55px;
+                border-radius:50%;
+                border: none;
+                background-color: #f44949;
+                border: 1px solid #f44949;
+                color:#fff;
+            }
+            .${class_name}:active{
+                background-color: #ca8e9f;
+            }`;
+        }
+
+        let class_name = default_button_class_name();
+        style = default_style(class_name);
+        button_node.setAttribute('class', class_name);
+    }
+
+    // 创建 style 标签
+    let style_node = document.createElement('style');
+    // 设置 button 样式 (根据CSS选择器定位标签并设置)
+    style_node.innerText = style;
+    // 查询并获取 head
+    let head_node = document.querySelector('head');
+    // 将 style 加入 head
+    head_node.appendChild(style_node);
+
+    Object.assign(button_node, {
+        _enabled: true,
+        toggle: function (value) {
+            this._enabled = value;
+        },
+        disable: function () {
+            this.toggle(false);
+        },
+        enable: function () {
+            this.toggle(true);
+        },
+        enabled: function () {
+            return this._enabled;
+        },
+        text: function (value) {
+            this.innerText = value;
+        },
+    });
+
+    return button_node;
+}
