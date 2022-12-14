@@ -3,13 +3,12 @@
  */
 
 /**
- * 打印
+ * 日志输出
  * @param args
  */
-function print(...args) {
+function log(...args) {
     console.log(...args);
 }
-
 
 /**
  * 解析链接
@@ -61,7 +60,6 @@ function text2document(value) {
     }
     return doc;
 }
-
 
 /**
  * xhr 响应转 document 对象
@@ -191,11 +189,11 @@ function request(
         return new Promise(function (resolve, reject) {
             let start_time = new Date();
             let on_success = function (response) {
-                print("reqTime : ", (new Date() - start_time), " ; ", href);
+                log("reqTime : ", (new Date() - start_time), " ; ", href);
                 resolve(response);
             };
             let on_failure = function (reason) {
-                print("reqTime : ", (new Date() - start_time), " ; ", href);
+                log("reqTime : ", (new Date() - start_time), " ; ", href);
                 reject(reason);
             };
             let request_body = Object.assign(_params || {}, {
@@ -321,6 +319,11 @@ async function stream(
 }
 
 
+/**
+ * 翻译（google翻译）
+ * @param word
+ * @returns {Promise<string|string>}
+ */
 async function translate(word) {
     const st = encodeURIComponent(word.trim());
     const res = await request(
@@ -337,7 +340,6 @@ async function translate(word) {
     });
     return res?.querySelector("#tw-answ-target-text")?.textContent ?? "";
 }
-
 
 /**
  * xhr响应 转 字节数组
@@ -386,6 +388,17 @@ function isIterable(obj) {
 function isObject(obj) {
     return obj && Object.prototype.toString.call(obj) === "[object Object]";
 }
+
+/**
+ * 是否为字符串
+ * @param obj
+ * @returns {boolean}
+ */
+function isString(obj) {
+    return obj && typeof obj === "string";
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 /**
  * 创建 Button
