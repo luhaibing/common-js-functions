@@ -124,6 +124,32 @@ async function asyncPool(limit, arr, func, ...args) {
 }
 
 /**
+ * 失败后重试
+ * @param func  需要包装的函数
+ * @param times 最大重试次数
+ * @returns {Promise<*>}
+ */
+function retry(func, times) {
+    let use = times;
+    return new Promise(async function (resolve, reject) {
+        while (true) {
+            try {
+                use--;
+                let response = await func();
+                resolve(response);
+                break;
+            } catch (error) {
+                if (use) {
+                    continue;
+                }
+                reject(error);
+                break;
+            }
+        }
+    });
+}
+
+/**
  *
  * @param href
  * @param method
@@ -219,29 +245,6 @@ function request(
             })
             GM_xmlhttpRequest(request_body);
         })
-    }
-
-    /**
-     * 失败后重试
-     * @param func  需要包装的函数
-     * @param times 最大重试次数
-     * @returns {Promise<unknown>}
-     */
-    function retry(func, times) {
-        let use = times;
-        return new Promise(async function (resolve, reject) {
-            while (use--) {
-                try {
-                    let response = await func();
-                    resolve(response);
-                    break;
-                } catch (error) {
-                    if (!use) {
-                        reject(error);
-                    }
-                }
-            }
-        });
     }
 
     return retry(run, _retrytimes);
@@ -444,6 +447,9 @@ function button(text, func, style = null, attributes = null) {
                 color:#fff;
             }
             .${class_name}:active{
+                background-color: #ca8e9f;
+            }
+            .${class_name}:hover{
                 background-color: #ca8e9f;
             }`;
         }
