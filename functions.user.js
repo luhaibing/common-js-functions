@@ -227,7 +227,7 @@ function request(
                 method: method,
                 timeout: _timeout,
                 headers: headers,
-                data,
+                data: data,
                 onload: on_success,
                 onabort: on_failure,
                 onerror: on_failure,
