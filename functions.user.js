@@ -127,15 +127,18 @@ async function asyncPool(limit, arr, func, ...args) {
  * 失败后重试
  * @param func  需要包装的函数
  * @param times 最大重试次数
+ * @param verify 验证响应
  * @returns {Promise<*>}
  */
-function retry(func, times) {
-    let use = times;
+// 条件
+function retry(func, times = 5, verify = null) {
+    let use = times || 5;
     return new Promise(async function (resolve, reject) {
         while (true) {
             try {
                 use--;
                 let response = await func();
+                verify?.(response)
                 resolve(response);
                 break;
             } catch (error) {
@@ -374,13 +377,14 @@ NodeList.prototype.toArray = function () {
     return Array.from(this);
 }
 
+
 /**
  * 是否可迭代
  * @param obj
  * @returns {boolean}
  */
 function isIterable(obj) {
-    return obj && typeof obj[Symbol.iterator] === 'function';
+    return Boolean(obj && typeof obj[Symbol.iterator] === 'function');
 }
 
 /**
@@ -389,7 +393,7 @@ function isIterable(obj) {
  * @returns {boolean}
  */
 function isObject(obj) {
-    return obj && Object.prototype.toString.call(obj) === "[object Object]";
+    return Boolean(obj && Object.prototype.toString.call(obj) === "[object Object]");
 }
 
 /**
@@ -398,8 +402,9 @@ function isObject(obj) {
  * @returns {boolean}
  */
 function isString(obj) {
-    return obj && typeof obj === "string";
+    return Boolean(obj && typeof obj === "string");
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -488,4 +493,139 @@ function button(text, func, style = null, attributes = null) {
     });
 
     return button_node;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * 站点
+ * 主要用于匹配和检查站点
+ */
+class Link {
+
+    /**
+     * 主机
+     */
+    host;
+
+    /**
+     * 路径
+     */
+    path;
+
+    static is_valid_string(value) {
+        return isString(value) && value.trim().length > 0
+    }
+
+    static is_valid_Iterable(value) {
+        return !isString(value) && isIterable(value) && Array.from(value ?? []).length > 0
+    }
+
+    constructor(host, path,) {
+        if (!(Link.is_valid_string(host) || host instanceof RegExp || Link.is_valid_Iterable(host))) {
+            throw "host can not be blank or undefined.";
+        }
+        this.host = host;
+        this.path = path;
+    }
+
+    /**
+     * 匹配
+     * @param href
+     */
+    match(href) {
+        function _run(target, rules,) {
+            target = target.trim();
+            rules = rules || [];
+            for (const rule of rules) {
+                if (isString(rule,) && target === rule.trim()) {
+                    return true;
+                } else if (rule instanceof RegExp && rule.test(target,)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        href = href ?? location.href;
+        let value = parseURL(href,);
+        let {host, path,} = this;
+        let hosts, paths;
+
+        if (isString(host,)) {
+            hosts = [host.trim()];
+        } else if (host instanceof RegExp) {
+            hosts = [host,];
+        } else if (isIterable(host,)) {
+            hosts = Array.from(host,);
+        } else {
+            hosts = null;
+        }
+        if (!_run(value.hostname, hosts,)) {
+            return false;
+        }
+        if (isString(path,)) {
+            paths = [path.trim()]
+        } else if (path instanceof RegExp) {
+            paths = [path,];
+        } else if (isIterable(path,)) {
+            paths = Array.from(path,);
+        } else {
+            paths = null;
+        }
+        return _run(value.pathname, paths);
+    }
+
+}
+
+/**
+ * 搜索者
+ * 方便元素定位和查询
+ */
+class Hunter extends Link {
+
+    query(rule, node, doc,) {
+        if (!doc) {
+            throw "doc not found.";
+        }
+        if (!node) {
+            throw "node not found.";
+        }
+        if (rule.slice(0, 1) === '/' || rule.slice(0, 2) === './' || rule.slice(0, 2) === '(/' || rule.slice(0, 3) === 'id(') {
+            return this.query_by_xpath(rule, node, doc,);
+        } else {
+            return this.query_by_css(rule, node, doc,);
+        }
+    }
+
+    query_by_xpath(rule, node, doc,) {
+        function snapshot2value(snapshot) {
+            if (snapshot instanceof HTMLElement) {
+                return snapshot;
+            } else if (snapshot instanceof Text) {
+                return snapshot.nodeValue;
+            } else if (snapshot instanceof Attr) {
+                return snapshot.nodeValue;
+            }
+            return snapshot
+        }
+
+        let query = doc.evaluate(rule, node, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+        let values = [];
+        try {
+            for (let i = 0; i < query.snapshotLength; i++) {
+                const value = query.snapshotItem(i);
+                values.push(snapshot2value(value));
+            }
+        } catch (reason) {
+            log(reason);
+        }
+        return values;
+    }
+
+    query_by_css(rule, node, doc,) {
+        let finds = node.querySelectorAll(rule);
+        return Array.from(finds);
+    }
+
 }
