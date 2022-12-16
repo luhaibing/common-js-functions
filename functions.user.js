@@ -13,7 +13,7 @@ function log(...args) {
 /**
  * 解析链接
  * @param value 链接
- * @returns {{}}
+ * @returns {Object}
  */
 function parseURL(value) {
     let url = new URL(value);
@@ -87,7 +87,7 @@ function response2document(value) {
  * @param arr   数据的数组
  * @param func  可执行函数
  * @param args  参数
- * @returns {Promise<Awaited<unknown>[]>}
+ * @returns {Promise<Awaited<*>[]>}
  */
 async function asyncPool(limit, arr, func, ...args) {
 
