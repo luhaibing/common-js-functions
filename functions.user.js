@@ -72,12 +72,13 @@ function response2document(value) {
     doc.href = finalUrl;
     let node = doc.querySelector("head > base");
     if (!node) {
-        let {protocol, hostname} = parseInt(finalUrl);
+        let {protocol, hostname} = parseURL(finalUrl);
         node = (doc ?? document).createElement("base");
         let base_url = `${protocol}//${hostname}/`;
         node.setAttribute("href", base_url);
         doc.head.appendChild(node)
     }
+    doc.base_url = node.href;
     return doc;
 }
 
@@ -405,6 +406,24 @@ function isString(obj) {
     return Boolean(obj && typeof obj === "string");
 }
 
+/**
+ * 获取字符串的字节
+ * 中文字符占2个，其他占1个字节
+ * @param str
+ * @returns {number}
+ */
+function str2len(str) {
+    let strlen = 0;
+    for (let i = 0; i < str.length; i++) {
+        let code = str.charCodeAt(i);
+        if (code > 255) {//如果是汉字，则字符串长度加2
+            strlen += 2;
+        } else {
+            strlen++;
+        }
+    }
+    return strlen;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -498,7 +517,7 @@ function button(text, func, style = null, attributes = null) {
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
- * 站点
+ * 站点、链接
  * 主要用于匹配和检查站点
  */
 class Link {
@@ -514,19 +533,20 @@ class Link {
     path;
 
     static is_valid_string(value) {
-        return isString(value) && value.trim().length > 0
+        return isString(value) && value.trim().length > 0;
     }
 
     static is_valid_Iterable(value) {
-        return !isString(value) && isIterable(value) && Array.from(value ?? []).length > 0
+        return !isString(value) && isIterable(value) && Array.from(value ?? []).length > 0;
     }
 
-    constructor(host, path,) {
-        if (!(Link.is_valid_string(host) || host instanceof RegExp || Link.is_valid_Iterable(host))) {
+    constructor(host, path, verify = true) {
+        verify = verify ?? true
+        if (verify && !(Link.is_valid_string(host) || host instanceof RegExp || Link.is_valid_Iterable(host))) {
             throw "host can not be blank or undefined.";
         }
         this.host = host;
-        this.path = path;
+        this.path = path ?? [/.*/];
     }
 
     /**
@@ -571,7 +591,7 @@ class Link {
         } else if (isIterable(path,)) {
             paths = Array.from(path,);
         } else {
-            paths = null;
+            paths = [/.*/];
         }
         return _run(value.pathname, paths);
     }
@@ -579,12 +599,19 @@ class Link {
 }
 
 /**
- * 搜索者
+ * 查询
  * 方便元素定位和查询
  */
 class Hunter extends Link {
 
+    constructor(host, path, verify = true) {
+        super(host, path, verify);
+    }
+
     query(rule, node, doc,) {
+        if (!isString(rule)) {
+            throw "rule must be a string.";
+        }
         if (!doc) {
             throw "doc not found.";
         }
@@ -626,6 +653,47 @@ class Hunter extends Link {
     query_by_css(rule, node, doc,) {
         let finds = node.querySelectorAll(rule);
         return Array.from(finds);
+    }
+
+}
+
+/**
+ * 执行
+ */
+class Runner extends Hunter {
+
+    _runnable;
+
+    constructor(runnable, host, path, verify = true) {
+        super(host, path, verify);
+        if (!runnable) {
+            throw "runnable can not be null."
+        }
+        this._runnable = runnable;
+    }
+
+    /**
+     * 主体方法执行前
+     */
+    process_after() {
+    }
+
+    /**
+     * 主体方法执行后
+     */
+    process_before() {
+    }
+
+    /**
+     * 主体方法
+     * @param args
+     * @returns {any}
+     */
+    process(...args) {
+        this.process_before(...args);
+        let result = this._runnable?.call(this, ...args);
+        this.process_after(...args);
+        return result;
     }
 
 }
