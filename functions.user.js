@@ -829,24 +829,9 @@ function xmr(href, {
     });
 }
 
-function request(href, {
-    retryTimes, method, headers, data, anonymous, cookie, timeout, responseType, overrideMimeType, user, password,
-    on_progress, onProgress, onprogress,
-} = {}) {
-    retryTimes = retryTimes || 10;
-    const func = function () {
-        return xmr(href, {
-            method, headers, data, anonymous, cookie, timeout, responseType, overrideMimeType, user, password,
-            on_progress, onProgress, onprogress,
-        });
-    }
-    return retry(func, retryTimes);
-}
-
 /**
- * 请求 指定页面 的源码
- * @param value
- * @param retryTimes
+ *
+ * @param href
  * @param method
  * @param headers
  * @param data
@@ -860,22 +845,56 @@ function request(href, {
  * @param on_progress
  * @param onProgress
  * @param onprogress
+ * @param retryTimes
+ * @returns {Promise<*>}
+ */
+function request(href, {
+    method, headers, data, anonymous, cookie, timeout, responseType, overrideMimeType, user, password,
+    on_progress, onProgress, onprogress,
+} = {}, retryTimes = 10) {
+    retryTimes = retryTimes || 10;
+    const func = function () {
+        return xmr(href, {
+            method, headers, data, anonymous, cookie, timeout, responseType, overrideMimeType, user, password,
+            on_progress, onProgress, onprogress,
+        });
+    }
+    return retry(func, retryTimes);
+}
+
+/**
+ * 请求 指定页面 的源码
+ * @param value
+ * @param method
+ * @param headers
+ * @param data
+ * @param anonymous
+ * @param cookie
+ * @param timeout
+ * @param responseType
+ * @param overrideMimeType
+ * @param user
+ * @param password
+ * @param on_progress
+ * @param onProgress
+ * @param onprogress
+ * @param retryTimes
  * @returns {Promise<Document>}
  */
 function html(value, {
-    retryTimes, method, headers, data, anonymous, cookie, timeout, responseType, overrideMimeType, user, password,
+    method, headers, data, anonymous, cookie, timeout, responseType, overrideMimeType, user, password,
     on_progress, onProgress, onprogress,
-} = {}) {
-    const body = arguments[2] || {};
+} = {}, retryTimes = 10) {
+    const body = arguments[1] || {};
     body.headers = Object.assign(body.headers || {}, {
         "referrer": location.href,
         "Cache-Control": "no-cache",
         "Content-Type": "text/html;charset=" + document.characterSet,
     });
-    return request(value, retryTimes, Object.assign(body, {
+    return request(value, Object.assign(body, {
         method: "GET",
         overrideMimeType: "text/html;charset=" + document.characterSet,
-    })).then(function (res) {
+    }), retryTimes).then(function (res) {
         return response2document(res);
     });
 }
@@ -900,19 +919,19 @@ function html(value, {
  * @returns {Promise<*>}
  */
 function stream(value, {
-    retryTimes, method, headers, data, anonymous, cookie, timeout, responseType, overrideMimeType, user, password,
+    method, headers, data, anonymous, cookie, timeout, responseType, overrideMimeType, user, password,
     on_progress, onProgress, onprogress,
-} = {}) {
-    const body = arguments[2] || {};
+} = {}, retryTimes = 10) {
+    const body = arguments[1] || {};
     body.headers = Object.assign(body.headers || {}, {
         "referrer": location.href,
         "Cache-Control": "no-cache",
         "Content-Type": "text/html;charset=" + document.characterSet,
     });
-    return request(value, retryTimes, Object.assign(body, {
+    return request(value, Object.assign(body, {
         method: "GET",
         overrideMimeType: "text/plain; charset=x-user-defined",
-    }));
+    }), retryTimes);
 }
 
 /**
