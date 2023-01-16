@@ -64,11 +64,11 @@ function isStr(obj) {
 
 /**
  * 是否为函数
- * @param value
+ * @param obj
  * @returns {boolean}
  */
-function isFunction(value) {
-    return value && (typeof value === "function");
+function isFunction(obj) {
+    return Boolean(obj && (typeof obj === "function"));
 }
 
 /**
