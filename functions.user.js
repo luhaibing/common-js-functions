@@ -63,6 +63,15 @@ function isStr(obj) {
 }
 
 /**
+ * 是否为函数
+ * @param value
+ * @returns {boolean}
+ */
+function isFunction(value) {
+    return value && (typeof value === "function");
+}
+
+/**
  * 有效字符串
  * @param value
  * @returns {boolean}
