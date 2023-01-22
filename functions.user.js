@@ -542,9 +542,9 @@ class Runner extends Queried {
      * @param args
      * @returns {any}
      */
-    run(...args) {
+    async run(...args) {
         this.run_before(...args);
-        let result = this.#runnable?.call(this, ...args);
+        let result = await this.#runnable?.call(this, ...args);
         this.run_after(result, ...args);
         return result;
     }
@@ -554,9 +554,9 @@ class Runner extends Queried {
 class Processor extends Runner {
 
     constructor(host, path = null, search = null) {
-        super(function (...args) {
+        super(async function (...args) {
             // noinspection JSPotentiallyInvalidUsageOfClassThis
-            this.process(...args)
+            await this.process(...args)
         }, host, path, search);
     }
 
