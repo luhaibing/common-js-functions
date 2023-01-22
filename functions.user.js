@@ -556,7 +556,7 @@ class Processor extends Runner {
     constructor(host, path = null, search = null) {
         super(async function (...args) {
             // noinspection JSPotentiallyInvalidUsageOfClassThis
-            await this.process(...args)
+            return await this.process(...args)
         }, host, path, search);
     }
 
