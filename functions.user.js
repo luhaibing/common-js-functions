@@ -556,7 +556,7 @@ class Processor extends Runner {
     constructor(host, path = null, search = null) {
         super(async function (...args) {
             // noinspection JSPotentiallyInvalidUsageOfClassThis
-            return await this.process(...args)
+            return await this.process(...args);
         }, host, path, search);
     }
 
@@ -597,7 +597,7 @@ Promise.prototype.response2array = function () {
 Array.prototype.distinct = function (predicate = null) {
     const values = [];
     const key = (value) => {
-        return predicate?.call(this, value) ?? value;
+        return value ? predicate?.call(this, value) ?? JSON.stringify(value) : null;
     }
 
     // 1.双for循环，外层循环，内层比较，如果有相同就跳过，不同就push进新数组，在return新数组
