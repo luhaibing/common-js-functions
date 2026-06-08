@@ -131,19 +131,137 @@ function any(iterable, predicate) {
  */
 function parseURL(value) {
     let url = new URL(value);
-    let params = new URLSearchParams(url.searchParams);
-    let obj = {};
-    params = Object.fromEntries(params);
-    obj.protocol = url.protocol;
-    obj.port = url.port;
-    obj.hostname = url.hostname;
-    obj.pathname = url.pathname;
-    obj.params = params;
-    obj.search = url.search;
+    // https://user:pass@example.com:8080/path?query=1&key=2#hash
+    let obj = {
 
-    obj.origin = url.origin;
-    obj.href = url.href;
-    obj.hash = url.hash;
+        // 读写
+
+        // https: 协议方案，包含最后的 ':'
+        get protocol() {
+            return url.protocol;
+        },
+        set protocol(v) {
+            url.protocol = v;
+        },
+
+        // user 在域名之前指定的用户名
+        get username() {
+            let v = url.username;
+            if (v == null || v.trim().length == 0) {
+                return null;
+            }
+            return v.trim();
+        },
+        set username(v) {
+            url.username = v;
+        },
+
+        // pass 在域名之前指定的密码
+        get password() {
+            let v = url.password;
+            if (v == null || v.trim().length == 0) {
+                return null;
+            }
+            return v.trim();
+        },
+        set password(v) {
+            url.password = v;
+        },
+
+        // example.com 域名（不包含端口）
+        get hostname() {
+            return url.hostname;
+        },
+        set hostname(v) {
+            url.hostname = v;
+        },
+
+        // 8080 端口号（字符串类型）
+        get port() {
+            let v = url.port;
+            if (v == null || v.trim().length == 0) {
+                return null;
+            }
+            return v.trim();
+        },
+        set port(v) {
+            url.port = v;
+        },
+
+        // /path 路径，以 / 开头
+        get pathname() {
+            let v = url.pathname;
+            if (v == null || v.trim().length == 0 || v.trim() == "/") {
+                return null;
+            }
+            return v.trim();
+        },
+        set pathname(v) {
+            url.pathname = v;
+        },
+
+        // ?query=1&key=2 查询字符串，以 ? 开头
+        get search() {
+            let v = url.search;
+            if (v == null || v.trim().length == 0) {
+                return null;
+            }
+            return v.trim();
+        },
+        set search(v) {
+            if (v == null) {
+                url.search = "";
+            } else {
+                url.search = v;
+            }
+        },
+
+        // #hash 片段标识符，以 # 开头
+        get hash() {
+            let v = url.hash;
+            if (v == null || v.trim().length == 0) {
+                return null;
+            }
+            return v.trim();
+        },
+        set hash(v) {
+            url.hash = v;
+        },
+
+        // {"query":1, "key":2} 查询参数的 URLSearchParams 对象
+        get searchParams() {
+            let v = url.searchParams;
+            if (v == null || v.size == 0) {
+                return null;
+            }
+            return v;
+        },
+        set searchParams(v) {
+            if (typeof v == "string") {
+                this.search = v;
+            } else {
+                url.searchParams = v;
+            }
+        },
+
+        // 只读
+
+        // https://user:pass@example.com:8080/path?query=1#hash 完整的 URL 字符串
+        get href() {
+            return url.href;
+        },
+
+        // https://example.com:8080 源（协议+域名+端口）
+        get origin() {
+            return url.origin;
+        },
+
+        // example.com:8080 域名 + 端口（包含 ':'）
+        get host() {
+            return url.host;
+        },
+
+    }
     return obj;
 }
 
