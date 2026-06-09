@@ -1,7 +1,7 @@
 // noinspection JSUnusedGlobalSymbols,DuplicatedCode
 
 /**
- * 学习和编写 tampermonkey2 脚本时常用的函数
+ * 学习和编写 tampermonkey 脚本时常用的函数
  */
 
 // ------------------------------- function  -------------------------------
