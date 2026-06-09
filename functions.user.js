@@ -279,7 +279,7 @@ function str2document(value) {
      text/html	                Document
      text/xml	                XMLDocument
      application/xml	        XMLDocument
-     application/xhtml+xml     XMLDocument
+     application/xhtml+xml      XMLDocument
      image/svg+xml	            XMLDocument
 
      2.
