@@ -839,7 +839,7 @@ async function retry(func, times = 5, throwable = null) {
     });
 }
 
-const sleep = async function (time) {
+const delay = async function (time) {
     return new Promise(function (resolve) {
         setTimeout(resolve, time);
     });
