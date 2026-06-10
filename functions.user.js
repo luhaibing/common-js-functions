@@ -332,14 +332,14 @@ function str2document(value) {
  * @returns {Document}
  */
 function response2document(value) {
-    const {finalUrl, responseText,} = value;
+    const { finalUrl, responseText, } = value;
     const doc = str2document(responseText);
     if (!doc) {
         return null;
     }
     let node = doc.querySelector("head > base");
     if (!node) {
-        const {origin} = parseURL(finalUrl);
+        const { origin } = parseURL(finalUrl);
         node = doc.createElement("base");
         node.setAttribute("href", origin);
         doc.head.appendChild(node);
@@ -603,7 +603,7 @@ class Link {
             return values;
         }
 
-        const {host, path, search} = this;
+        const { host, path, search } = this;
 
         href = href ?? location.href;
         const value = parseURL(href);
@@ -692,7 +692,7 @@ class Processor extends Runner {
  */
 Promise.prototype.response2array = function () {
     return this.then(function (res) {
-        const {responseText} = res;
+        const { responseText } = res;
         if (!responseText) {
             // response 转化 Uint8Array 失败
             throw "response translating Uint8Array failed."
@@ -869,7 +869,7 @@ function xmr(href, {
     on_progress, onProgress, onprogress,
 } = {}) {
     /*
-    binary, nocache, revalidate, context, fetch,onreadystatechange,
+    binary, nocache, revalidate, context, fetch, onreadystatechange,
     onabort, on_abort, onAbort,
     onerror, on_error, onError,
     onloadstart, on_loadstart, onLoadstart,
@@ -944,7 +944,7 @@ function xmr(href, {
             onabort: on_failure,
             onerror: on_failure,
             ontimeout: on_failure,
-            onprogress: function ({lengthComputable, loaded, total,}) {
+            onprogress: function ({ lengthComputable, loaded, total, }) {
                 if (!lengthComputable) {
                     return;
                 }
@@ -1008,7 +1008,7 @@ function request(href, {
  * @param retryTimes
  * @returns {Promise<Document>}
  */
-function html(value, {
+function fetch(value, {
     method, headers, data, anonymous, cookie, timeout, responseType, overrideMimeType, user, password,
     on_progress, onProgress, onprogress,
 } = {}, retryTimes = 10) {
@@ -1071,7 +1071,7 @@ async function translate(word) {
     const res = await request("https://www.google.com/async/translate?vet=12ahUKEwixq63V3Kn3AhUCJUQIHdMJDpkQqDh6BAgCECw..i&ei=CbNjYvGCPYLKkPIP05O4yAk&yv=3", 10, {
         method: 'POST',
         responseType: '',
-        data: {"async": `translate,sl:auto,tl:zh-CN,st:${st},id:1650701080679,qc:true,ac:false,_id:tw-async-translate,_pms:s,_fmt:pc`,}
+        data: { "async": `translate,sl:auto,tl:zh-CN,st:${st},id:1650701080679,qc:true,ac:false,_id:tw-async-translate,_pms:s,_fmt:pc`, }
     }).then(function (res) {
         return response2document(res);
     });
