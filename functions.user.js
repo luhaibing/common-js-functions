@@ -22,7 +22,7 @@ function log(...args) {
 function str2len(str) {
     let strlen = 0;
     for (let i = 0; i < str.length; i++) {
-        let code = str.charCodeAt(i);
+        const code = str.charCodeAt(i);
         if (code > 255) {
             //如果是汉字，则字符串长度加2
             strlen += 2;
@@ -130,9 +130,9 @@ function any(iterable, predicate) {
  * @returns {Object}
  */
 function parseURL(value) {
-    let url = new URL(value);
+    const url = new URL(value);
     // https://user:pass@example.com:8080/path?query=1&key=2#hash
-    let obj = {
+    const obj = {
 
         // 读写
 
@@ -146,7 +146,7 @@ function parseURL(value) {
 
         // user 在域名之前指定的用户名
         get username() {
-            let v = url.username;
+            const v = url.username;
             if (v == null || v.trim().length == 0) {
                 return null;
             }
@@ -158,7 +158,7 @@ function parseURL(value) {
 
         // pass 在域名之前指定的密码
         get password() {
-            let v = url.password;
+            const v = url.password;
             if (v == null || v.trim().length == 0) {
                 return null;
             }
@@ -178,7 +178,7 @@ function parseURL(value) {
 
         // 8080 端口号（字符串类型）
         get port() {
-            let v = url.port;
+            const v = url.port;
             if (v == null || v.trim().length == 0) {
                 return null;
             }
@@ -190,7 +190,7 @@ function parseURL(value) {
 
         // /path 路径，以 / 开头
         get pathname() {
-            let v = url.pathname;
+            const v = url.pathname;
             if (v == null || v.trim().length == 0 || v.trim() == "/") {
                 return null;
             }
@@ -202,7 +202,7 @@ function parseURL(value) {
 
         // ?query=1&key=2 查询字符串，以 ? 开头
         get search() {
-            let v = url.search;
+            const v = url.search;
             if (v == null || v.trim().length == 0) {
                 return null;
             }
@@ -218,7 +218,7 @@ function parseURL(value) {
 
         // #hash 片段标识符，以 # 开头
         get hash() {
-            let v = url.hash;
+            const v = url.hash;
             if (v == null || v.trim().length == 0) {
                 return null;
             }
@@ -230,7 +230,7 @@ function parseURL(value) {
 
         // {"query":1, "key":2} 查询参数的 URLSearchParams 对象
         get searchParams() {
-            let v = url.searchParams;
+            const v = url.searchParams;
             if (v == null || v.size == 0) {
                 return null;
             }
@@ -309,8 +309,8 @@ function str2document(value) {
             }
         }
         if (doc) {
-            let r = document.createRange();
-            // let n = r.createContextualFragment(value);
+            const r = document.createRange();
+            // const n = r.createContextualFragment(value);
             r.createContextualFragment(value);
             r.selectNodeContents(document.body);
             for (let a, o = {
@@ -332,14 +332,14 @@ function str2document(value) {
  * @returns {Document}
  */
 function response2document(value) {
-    let {finalUrl, responseText,} = value;
-    let doc = str2document(responseText);
+    const {finalUrl, responseText,} = value;
+    const doc = str2document(responseText);
     if (!doc) {
         return null;
     }
     let node = doc.querySelector("head > base");
     if (!node) {
-        let {origin} = parseURL(finalUrl);
+        const {origin} = parseURL(finalUrl);
         node = doc.createElement("base");
         node.setAttribute("href", origin);
         doc.head.appendChild(node);
@@ -400,11 +400,11 @@ function singleton(prototype, ...args) {
  */
 function button(text, func, style = null, attributes = null) {
     // 创建按钮
-    let button_node = document.createElement('button');
+    const button_node = document.createElement('button');
     // 按钮设置 class
     if (attributes) {
         Object.keys(attributes).forEach(function (k) {
-            let v = attributes[k];
+            const v = attributes[k];
             button_node.setAttribute(k, v);
         });
     }
@@ -416,7 +416,7 @@ function button(text, func, style = null, attributes = null) {
 
     if (!style) {
         function default_button_class_name() {
-            let random_code = Math.floor(Math.random() * 10 ** 10);
+            const random_code = Math.floor(Math.random() * 10 ** 10);
             return `button${random_code}`;
         }
 
@@ -442,17 +442,17 @@ function button(text, func, style = null, attributes = null) {
             }`;
         }
 
-        let class_name = default_button_class_name();
+        const class_name = default_button_class_name();
         style = default_style(class_name);
         button_node.setAttribute('class', class_name);
     }
 
     // 创建 style 标签
-    let style_node = document.createElement('style');
+    const style_node = document.createElement('style');
     // 设置 button 样式 (根据CSS选择器定位标签并设置)
     style_node.innerText = style;
     // 查询并获取 head
-    let head_node = document.querySelector('head');
+    const head_node = document.querySelector('head');
     // 将 style 加入 head
     head_node.appendChild(style_node);
 
@@ -476,7 +476,7 @@ function button(text, func, style = null, attributes = null) {
 // ------------------------------- Level -------------------------------
 
 function query_by_css(rule, node, _) {
-    let finds = node.querySelectorAll(rule);
+    const finds = node.querySelectorAll(rule);
     return Array.from(finds);
 }
 
@@ -492,8 +492,8 @@ function query_by_xpath(rule, node, doc) {
         return snapshot
     }
 
-    let query = doc.evaluate(rule, node, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-    let values = [];
+    const query = doc.evaluate(rule, node, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+    const values = [];
     try {
         for (let i = 0; i < query.snapshotLength; i++) {
             const value = query.snapshotItem(i);
@@ -524,7 +524,7 @@ function query(rule, node = document, doc = document, name = null) {
             throw "rule must be a valid string.";
         }
     }
-    let is_xpath = rule.slice(0, 1) === '/' || rule.slice(0, 2) === './' || rule.slice(0, 2) === '(/' || rule.slice(0, 3) === 'id(';
+    const is_xpath = rule.slice(0, 1) === '/' || rule.slice(0, 2) === './' || rule.slice(0, 2) === '(/' || rule.slice(0, 3) === 'id(';
     if (is_xpath) {
         return query_by_xpath(rule, node, doc);
     } else {
@@ -606,7 +606,7 @@ class Link {
         const {host, path, search} = this;
 
         href = href ?? location.href;
-        let value = parseURL(href);
+        const value = parseURL(href);
 
         return _match(value.hostname, _input2values(host)) && _match(value.pathname, _input2values(path, /.*/)) && _match(value.search, _input2values(search, /.*/));
 
@@ -662,7 +662,7 @@ class Runner extends Queried {
      */
     async run(...args) {
         this.run_before(...args);
-        let result = await this.#runnable?.call(this, ...args);
+        const result = await this.#runnable?.call(this, ...args);
         this.run_after(result, ...args);
         return result;
     }
@@ -692,12 +692,12 @@ class Processor extends Runner {
  */
 Promise.prototype.response2array = function () {
     return this.then(function (res) {
-        let {responseText} = res;
+        const {responseText} = res;
         if (!responseText) {
             // response 转化 Uint8Array 失败
             throw "response translating Uint8Array failed."
         }
-        let data = new Uint8Array(responseText.length);
+        const data = new Uint8Array(responseText.length);
         let index = 0;
         while (index < responseText.length) {
             data[index] = responseText.charCodeAt(index);
@@ -720,11 +720,11 @@ Array.prototype.distinct = function (predicate = null) {
 
     // 1.双for循环，外层循环，内层比较，如果有相同就跳过，不同就push进新数组，在return新数组
     /*
-    let length = this.length;
+    const length = this.length;
     for (let i = 0; i < length; i++) {
         for (let j = i + 1; j < length; j++) {
-            let k1 = key(this[i]);
-            let k2 = key(this[j]);
+            const k1 = key(this[i]);
+            const k2 = key(this[j]);
             if (k1 === k2) {
                 j = ++i;
             }
@@ -783,7 +783,7 @@ async function asyncPool(limit, arr, func, ...args) {
     // 预先执行的任务
     const executing = [];
     for (const item of arr) {
-        let promise = Promise.resolve().then(function () {
+        const promise = Promise.resolve().then(function () {
             return func(item, ...args);
         });
         // 方便最后统一获取结果
@@ -792,7 +792,7 @@ async function asyncPool(limit, arr, func, ...args) {
             // 限制数 大于 数组长度
             continue;
         }
-        let wrap = promise.then(function (v) {
+        const wrap = promise.then(function (v) {
             // 完成后将自身从正在执行的数组中移除
             executing.splice(executing.indexOf(wrap), 1)
             return v;
@@ -824,7 +824,7 @@ async function retry(func, times = 5, throwable = null) {
         while (true) {
             try {
                 use--;
-                let response = await func();
+                const response = await func();
                 throwable?.(response)
                 resolve(response);
                 break;
@@ -929,12 +929,12 @@ function xmr(href, {
     };
 
     return new Promise(function (resolve, reject) {
-        let start_time = new Date();
-        let on_success = function (response) {
+        const start_time = new Date();
+        const on_success = function (response) {
             log("reqTime : ", (new Date() - start_time), " ; ", href);
             resolve(response);
         };
-        let on_failure = function (reason) {
+        const on_failure = function (reason) {
             log("reqTime : ", (new Date() - start_time), " ; ", href);
             reject(reason);
         };
@@ -1079,4 +1079,3 @@ async function translate(word) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
