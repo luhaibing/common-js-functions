@@ -1085,7 +1085,7 @@ async function translate(word) {
  * @param {string} value 链接
  * @returns {Promise<Document>}
  */
-function insert(value) {
+function html(value) {
     return new Promise((resolve, reject) => {
         let iframe = document.createElement('iframe');
         // 隐藏，或设置为可见用于调试
