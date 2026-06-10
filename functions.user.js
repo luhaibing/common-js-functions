@@ -1079,3 +1079,24 @@ async function translate(word) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * 请求 指定页面 的源码
+ * @param {string} value 链接
+ * @returns {Promise<Document>}
+ */
+function insert(value) {
+    return new Promise((resolve, reject) => {
+        let iframe = document.createElement('iframe');
+        // 隐藏，或设置为可见用于调试
+        iframe.style.display = 'none';
+        iframe.sandbox = 'allow-same-origin allow-scripts allow-popups allow-forms';
+        iframe.style.width = '100%';
+        iframe.src = value;
+        document.body.appendChild(iframe);
+        iframe.onload = function () {
+            resolve(iframe.contentDocument);
+            document.body.removeChild(iframe);
+        }
+    })
+}
