@@ -332,14 +332,14 @@ function str2document(value) {
  * @returns {Document}
  */
 function response2document(value) {
-    const { finalUrl, responseText, } = value;
+    const {finalUrl, responseText,} = value;
     const doc = str2document(responseText);
     if (!doc) {
         return null;
     }
     let node = doc.querySelector("head > base");
     if (!node) {
-        const { origin } = parseURL(finalUrl);
+        const {origin} = parseURL(finalUrl);
         node = doc.createElement("base");
         node.setAttribute("href", origin);
         doc.head.appendChild(node);
@@ -475,12 +475,12 @@ function button(text, func, style = null, attributes = null) {
 
 // ------------------------------- Level -------------------------------
 
-function query_by_css(rule, node, _) {
-    const finds = node.querySelectorAll(rule);
+function query_by_css(rule, doc) {
+    const finds = doc.querySelectorAll(rule);
     return Array.from(finds);
 }
 
-function query_by_xpath(rule, node, doc) {
+function query_by_xpath(rule, doc) {
     function snapshot2value(snapshot) {
         if (snapshot instanceof HTMLElement) {
             return snapshot;
@@ -492,7 +492,7 @@ function query_by_xpath(rule, node, doc) {
         return snapshot
     }
 
-    const query = doc.evaluate(rule, node, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+    const query = doc.evaluate(rule, doc, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
     const values = [];
     try {
         for (let i = 0; i < query.snapshotLength; i++) {
@@ -509,13 +509,11 @@ function query_by_xpath(rule, node, doc) {
 /**
  * 根据规则查询节点
  * @param rule
- * @param node
  * @param doc
  * @param name
  * @returns {*[]}
  */
-function query(rule, node = document, doc = document, name = null) {
-    node = node || document;
+function query(rule, doc = document, name = null) {
     doc = doc || document;
     if (!isValidStr(rule)) {
         if (name) {
@@ -526,9 +524,9 @@ function query(rule, node = document, doc = document, name = null) {
     }
     const is_xpath = rule.slice(0, 1) === '/' || rule.slice(0, 2) === './' || rule.slice(0, 2) === '(/' || rule.slice(0, 3) === 'id(';
     if (is_xpath) {
-        return query_by_xpath(rule, node, doc);
+        return query_by_xpath(rule, doc);
     } else {
-        return query_by_css(rule, node, doc);
+        return query_by_css(rule, doc);
     }
 }
 
@@ -603,7 +601,7 @@ class Link {
             return values;
         }
 
-        const { host, path, search } = this;
+        const {host, path, search} = this;
 
         href = href ?? location.href;
         const value = parseURL(href);
@@ -620,13 +618,12 @@ class Queried extends Link {
      * 根据规则查询节点
      * 注：这一重继承没有多大意义，只是习惯 aop 的编程思想
      * @param rule
-     * @param node
      * @param doc
      * @param name
      * @returns {[]|*[]}
      */
-    query(rule, node, doc, name) {
-        return query(rule, node, doc, name);
+    query(rule, doc, name) {
+        return query(rule, doc, name);
     }
 
 }
@@ -692,7 +689,7 @@ class Processor extends Runner {
  */
 Promise.prototype.response2array = function () {
     return this.then(function (res) {
-        const { responseText } = res;
+        const {responseText} = res;
         if (!responseText) {
             // response 转化 Uint8Array 失败
             throw "response translating Uint8Array failed."
@@ -711,6 +708,7 @@ Promise.prototype.response2array = function () {
  * 去重
  * @param predicate
  * @returns {*[]}
+ * @returns {Array<*>}
  */
 Array.prototype.distinct = function (predicate = null) {
     const values = [];
@@ -869,7 +867,7 @@ function xmr(href, {
     on_progress, onProgress, onprogress,
 } = {}) {
     /*
-    binary, nocache, revalidate, context, fetch, onreadystatechange,
+    binary, nocache, revalidate, context, fetch,onreadystatechange,
     onabort, on_abort, onAbort,
     onerror, on_error, onError,
     onloadstart, on_loadstart, onLoadstart,
@@ -944,7 +942,7 @@ function xmr(href, {
             onabort: on_failure,
             onerror: on_failure,
             ontimeout: on_failure,
-            onprogress: function ({ lengthComputable, loaded, total, }) {
+            onprogress: function ({lengthComputable, loaded, total,}) {
                 if (!lengthComputable) {
                     return;
                 }
@@ -1071,7 +1069,7 @@ async function translate(word) {
     const res = await request("https://www.google.com/async/translate?vet=12ahUKEwixq63V3Kn3AhUCJUQIHdMJDpkQqDh6BAgCECw..i&ei=CbNjYvGCPYLKkPIP05O4yAk&yv=3", 10, {
         method: 'POST',
         responseType: '',
-        data: { "async": `translate,sl:auto,tl:zh-CN,st:${st},id:1650701080679,qc:true,ac:false,_id:tw-async-translate,_pms:s,_fmt:pc`, }
+        data: {"async": `translate,sl:auto,tl:zh-CN,st:${st},id:1650701080679,qc:true,ac:false,_id:tw-async-translate,_pms:s,_fmt:pc`,}
     }).then(function (res) {
         return response2document(res);
     });
@@ -1082,7 +1080,7 @@ async function translate(word) {
 
 /**
  * 请求 指定页面 的源码
- * @param {string} value 链接
+ * @param {string} value 链接
  * @returns {Promise<Document>}
  */
 function html(value) {
