@@ -591,9 +591,9 @@ function query(doc, value) {
     doc = doc || document;
     const isXpath = value.slice(0, 1) === '/' || value.slice(0, 2) === './' || value.slice(0, 2) === '(/' || value.slice(0, 3) === 'id(';
     if (isXpath) {
-        return xpath(value, doc);
+        return xpath(doc, value);
     } else {
-        return css(value, doc);
+        return css(doc, value);
     }
 }
 
