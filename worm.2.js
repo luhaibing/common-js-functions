@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name            蠕虫
+// @name            蠕虫2
 // @namespace       http://tampermonkey.net/
 // @version         0.1
 // @description     特定站点的资源下载器
@@ -8,11 +8,7 @@
 
 // @match           *://*/*
 
-// @require         https://github.com/luhaibing/common-js-functions/raw/main/functions.user.js
-// @require         https://cdn.bootcss.com/FileSaver.js/1.3.2/FileSaver.min.js
-// @require         https://cdn.bootcss.com/jszip/3.1.4/jszip.min.js
-// @require         https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js
-// @require         https://unpkg.com/md5@2.3.0/dist/md5.min.js
+// @require         https://raw.githubusercontent.com/luhaibing/common-js-functions/refs/heads/main/tampermonkey.functions.js
 
 // @grant           GM_xmlhttpRequest
 // @grant           GM_setClipboard
@@ -81,11 +77,12 @@
 
         /**
          *
-         * @param href
-         * @param name
-         * @param pattern
-         * @param default_suffix
-         * @param type
+         * @param {String} href
+         * @param {String} name
+         * @param {RegExp|null} pattern
+         * @param {String|null} default_suffix
+         * @param {Number} type
+         * @param {Document} doc
          * @returns {Entity|null}
          */
         static href(href, name, pattern, default_suffix, type = Entity.HREF, {doc}) {
@@ -112,8 +109,9 @@
 
         /**
          *
-         * @param href
-         * @param name
+         * @param {String} href
+         * @param {String} name
+         * @param {Document} doc
          * @returns {Entity}
          */
         static cover(href, name, doc) {
@@ -122,10 +120,10 @@
 
         /**
          *
-         * @param href
-         * @param name
-         * @param doc
-         * @return {Entity|null}
+         * @param {String} href
+         * @param {String} name
+         * @param {Document} doc
+         * @returns {Entity}
          */
         static photo(href, name, doc) {
             if (!/^https?/.test(href)) {
@@ -137,10 +135,10 @@
 
         /**
          *
-         * @param href
-         * @param name
-         * @param doc
-         * @return {Entity|null}
+         * @param {String} href
+         * @param {String} name
+         * @param {Document} doc
+         * @returns {Entity}
          */
         static video(href, name, doc) {
             if (!/^https?/.test(href)) {
@@ -152,10 +150,10 @@
 
         /**
          *
-         * @param href
-         * @param name
-         * @param doc
-         * @return {Entity|null}
+         * @param {String} href
+         * @param {String} name
+         * @param {Document} doc
+         * @returns {Entity}
          */
         static file(href, name, doc) {
             if (!/^https?/.test(href)) {
@@ -165,8 +163,15 @@
             return Entity.href(href, name, null, null, Entity.FILE, {doc: doc});
         }
 
+        /**
+         *
+         * @param {String} content
+         * @param {String} name
+         * @param {Document} doc
+         * @returns {Entity}
+         */
         static text(content, name, doc) {
-            return undefined;
+            return new Entity(content, name, Entity.TEXT);
         }
     }
 
@@ -700,13 +705,14 @@
 
         /**
          * 执行
-         * @param {Document} doc 页面文档
-         * @returns {Promise<Result>}
+         * @generator
+         * @param {Document} doc - 页面文档
+         * @returns {AsyncGenerator<Result, void, *>}
          */
-        async process(doc) {
+        async* process(doc) {
             await super.process(doc);
             let resource = await this.parse(doc);
-            return Result.from(resource, doc);
+            yield Result.from(resource, doc);
         }
 
         /**
@@ -1101,20 +1107,22 @@
 
     async function download(doc, site, configs) {
         let res = await site?.run(doc);
-        let json = JSON.stringify(res);
-        log(json);
+        log(res);
 
-        let resources;
-        if (isIterable(res)) {
-            resources = Array.from(res);
-        } else {
-            resources = [res];
-        }
-        for (const resource of resources) {
-            // noinspection JSUnusedGlobalSymbols
-            await download_resource(resource, configs);
-        }
-        site && await (site?.close());
+        // let json = JSON.stringify(res);
+        // log(json);
+        //
+        // let resources;
+        // if (isIterable(res)) {
+        //     resources = Array.from(res);
+        // } else {
+        //     resources = [res];
+        // }
+        // for (const resource of resources) {
+        //     // noinspection JSUnusedGlobalSymbols
+        //     await download_resource(resource, configs);
+        // }
+        // site && await (site?.close());
     }
 
     // noinspection JSUnresolvedFunction
