@@ -1013,7 +1013,7 @@
             "X-Custom-Header": Math.round(1000 + Math.random() * 8999).toString(),
         }
         let {on_start, on_progress, on_success, on_failure} = configs || {};
-        if (resource.entries.length == 1) {
+        if (resource.entries.length === 1) {
             let item0 = resource.entries[0];
             let v1 = item0.name;
             let v2 = v1.split(".")[1];

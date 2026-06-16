@@ -132,7 +132,7 @@ function any(iterable, predicate) {
 function parseURL(value) {
     const url = new URL(value);
     // https://user:pass@example.com:8080/path?query=1&key=2#hash
-    const obj = {
+    return {
 
         // 读写
 
@@ -261,8 +261,7 @@ function parseURL(value) {
             return url.host;
         },
 
-    }
-    return obj;
+    };
 }
 
 /**
