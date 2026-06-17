@@ -974,7 +974,25 @@ async function translate(value) {
  */
 function button(predicate) {
     const button = document.createElement('button');
-    predicate(button)
+    Object.assign(button, {
+        _enabled: true,
+        toggle: function (value) {
+            this._enabled = value;
+        },
+        disable: function () {
+            this.toggle(false);
+        },
+        enable: function () {
+            this.toggle(true);
+        },
+        enabled: function () {
+            return this._enabled;
+        },
+        text: function (value) {
+            this.innerText = value;
+        },
+    })
+    predicate(button);
     return button;
 }
 
