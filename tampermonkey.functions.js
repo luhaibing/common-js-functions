@@ -853,7 +853,7 @@ function xmlhttpRequest(value, options = {}) {
     };
     return new Promise(function (resolve, reject) {
         let timestamp = new Date();
-        // noinspection JSUnresolvedFunction
+        // noinspection JSUnresolvedFunction,JSUnusedGlobalSymbols
         GM_xmlhttpRequest(Object.assign(body, {
             // 回调函数参数
             onloadstart: function (response) {
@@ -1014,11 +1014,10 @@ class Link {
     #search;
 
     constructor(host, path = null, search = null) {
-        function _checkType(value) {
+        const checkType = function (value) {
             return isValidStr(value) || value instanceof RegExp
         }
-
-        if (!(_checkType(host) || all(host, _checkType))) {
+        if (!(checkType(host) || all(host, checkType))) {
             throw "host must be string or Regex.";
         }
         this.#host = host;
@@ -1038,9 +1037,13 @@ class Link {
         return this.#search;
     }
 
-    // noinspection SpellCheckingInspection
+    /**
+     * 匹配
+     * @param href 链接
+     * @return {boolean}
+     */
     match(href) {
-        function _match(value, elements) {
+        const match = function (value, elements) {
             elements = elements || [];
             for (const element of elements) {
                 if (isStr(element) && value === element) {
@@ -1051,8 +1054,7 @@ class Link {
             }
             return false;
         }
-
-        function _input2values(value, defaultValue) {
+        const input2values = function (value, defaultValue) {
             const values = [];
             if (isStr(value)) {
                 values.push(value);
@@ -1061,21 +1063,24 @@ class Link {
             } else if (isIterable(value)) {
                 const vs = Array.from(value);
                 for (const v of vs) {
-                    values.push(..._input2values(v, defaultValue));
+                    values.push(...input2values(v, defaultValue));
                 }
             } else if (defaultValue) {
                 values.push(defaultValue);
             }
             return values;
         }
-
         const {host, path, search} = this;
-
         href = href ?? location.href;
-        const value = parseURL(href);
-
-        return _match(value.hostname, _input2values(host)) && _match(value.pathname, _input2values(path, /.*/)) && _match(value.search, _input2values(search, /.*/));
-
+        let value;
+        try {
+            value = parseURL(href);
+        } catch (err) {
+            return false;
+        }
+        return match(value.hostname, input2values(host))
+            && match(value.pathname, input2values(path, /.*/))
+            && match(value.search, input2values(search, /.*/));
     }
 
 }
