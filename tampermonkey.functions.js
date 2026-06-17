@@ -283,7 +283,7 @@ Array.prototype.distinct = function (predicate = null) {
         const dict = {};
         for (const value of this) {
             const k = key(value);
-            if (k in dict) {
+            if (k !in dict) {
                 dict[k] = 1;
                 values.push(value);
             }
