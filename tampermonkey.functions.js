@@ -309,7 +309,7 @@ Array.prototype.let = function (predicate = null) {
  */
 Promise.prototype.response2array = function () {
     return this.then(function (res) {
-        const {responseText} = res;
+        const { responseText } = res;
         if (!responseText) {
             // response 转化 Uint8Array 失败
             throw "response translating Uint8Array failed."
@@ -668,14 +668,14 @@ function str2document(value) {
  * @returns {Document}
  */
 function response2document(value) {
-    const {finalUrl, responseText,} = value;
+    const { finalUrl, responseText, } = value;
     const doc = str2document(responseText);
     if (!doc) {
         return null;
     }
     let node = doc.querySelector("head > base");
     if (!node) {
-        const {origin} = parseURL(finalUrl);
+        const { origin } = parseURL(finalUrl);
         node = doc.createElement("base");
         node.setAttribute("href", origin);
         doc.head.appendChild(node);
@@ -853,7 +853,7 @@ function xmlhttpRequest(value, options = {}) {
     };
     return new Promise(function (resolve, reject) {
         let timestamp = new Date();
-        // noinspection JSUnresolvedFunction,JSUnusedGlobalSymbols
+        // noinspection JSUnresolvedFunction
         GM_xmlhttpRequest(Object.assign(body, {
             // 回调函数参数
             onloadstart: function (response) {
@@ -958,7 +958,7 @@ async function translate(value) {
     const res = await request("https://www.google.com/async/translate?vet=12ahUKEwixq63V3Kn3AhUCJUQIHdMJDpkQqDh6BAgCECw..i&ei=CbNjYvGCPYLKkPIP05O4yAk&yv=3", 10, {
         method: 'POST',
         responseType: '',
-        data: {"async": `translate,sl:auto,tl:zh-CN,st:${st},id:1650701080679,qc:true,ac:false,_id:tw-async-translate,_pms:s,_fmt:pc`,}
+        data: { "async": `translate,sl:auto,tl:zh-CN,st:${st},id:1650701080679,qc:true,ac:false,_id:tw-async-translate,_pms:s,_fmt:pc`, }
     }).then(function (res) {
         return response2document(res);
     });
@@ -1014,10 +1014,11 @@ class Link {
     #search;
 
     constructor(host, path = null, search = null) {
-        const checkType = function (value) {
+        function _checkType(value) {
             return isValidStr(value) || value instanceof RegExp
         }
-        if (!(checkType(host) || all(host, checkType))) {
+
+        if (!(_checkType(host) || all(host, _checkType))) {
             throw "host must be string or Regex.";
         }
         this.#host = host;
@@ -1037,13 +1038,9 @@ class Link {
         return this.#search;
     }
 
-    /**
-     * 匹配
-     * @param href 链接
-     * @return {boolean}
-     */
+    // noinspection SpellCheckingInspection
     match(href) {
-        const match = function (value, elements) {
+        function _match(value, elements) {
             elements = elements || [];
             for (const element of elements) {
                 if (isStr(element) && value === element) {
@@ -1054,7 +1051,8 @@ class Link {
             }
             return false;
         }
-        const input2values = function (value, defaultValue) {
+
+        function _input2values(value, defaultValue) {
             const values = [];
             if (isStr(value)) {
                 values.push(value);
@@ -1063,24 +1061,21 @@ class Link {
             } else if (isIterable(value)) {
                 const vs = Array.from(value);
                 for (const v of vs) {
-                    values.push(...input2values(v, defaultValue));
+                    values.push(..._input2values(v, defaultValue));
                 }
             } else if (defaultValue) {
                 values.push(defaultValue);
             }
             return values;
         }
-        const {host, path, search} = this;
+
+        const { host, path, search } = this;
+
         href = href ?? location.href;
-        let value;
-        try {
-            value = parseURL(href);
-        } catch (err) {
-            return false;
-        }
-        return match(value.hostname, input2values(host))
-            && match(value.pathname, input2values(path, /.*/))
-            && match(value.search, input2values(search, /.*/));
+        const value = parseURL(href);
+
+        return _match(value.hostname, _input2values(host)) && _match(value.pathname, _input2values(path, /.*/)) && _match(value.search, _input2values(search, /.*/));
+
     }
 
 }
@@ -1151,4 +1146,19 @@ class Processor extends Runner {
     async process(...args) {
     }
 
+}
+
+// ---------------------------------- UI ----------------------------------
+
+function isGenerator(value) {
+    return Object.prototype.toString.call(value) === '[object Generator]';
+}
+
+function isAsyncGenerator(value) {
+    return Object.prototype.toString.call(value) === '[object AsyncGenerator]';
+}
+
+function isAnyGenerator(value) {
+    const tag = Object.prototype.toString.call(value);
+    return tag === '[object Generator]' || tag === '[object AsyncGenerator]';
 }
