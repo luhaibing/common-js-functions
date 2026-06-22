@@ -96,6 +96,33 @@ function isValidIterable(value) {
 }
 
 /**
+ * 是否为同步生成器
+ * @param {*} value
+ * @returns {Boolean}
+ */
+function isGenerator(value) {
+    return Object.prototype.toString.call(value) === '[object Generator]';
+}
+
+/**
+ * 是否为异步生成器
+ * @param {*} value
+ * @returns {Boolean}
+ */
+function isAsyncGenerator(value) {
+    return Object.prototype.toString.call(value) === '[object AsyncGenerator]';
+}
+
+/**
+ * 是否为生成器
+ * @param {*} value
+ * @returns {Boolean}
+ */
+function isAnyGenerator(value) {
+    return isGenerator(value) || isAsyncGenerator(value);
+}
+
+/**
  * 所有子项都满足条件
  * @param value
  * @param predicate
@@ -172,7 +199,7 @@ function singleton(prototype, ...args) {
  * 请求参数
  * @typedef {Object} XmlhttpRequestOptions
  * @property {String} method - 请求方法，如 GET、POST、HEAD 等
- * @property {Dict<String, String>} headers - 自定义请求头，例如 {"User-Agent": "Mozilla/5.0"}
+ * @property {Map<String, String>} headers - 自定义请求头，例如 {"User-Agent": "Mozilla/5.0"}
  * @property {String|FormData|Blob|File|Array|ArrayBuffer|FormData|URLSearchParams|Object} data - 要发送的数据，常用于 POST 请求
  * @property {Number} timeout - 请求超时时间，单位为毫秒 (ms)
  * @property {'arraybuffer'|'blob'|'json'|'stream'} responseType - 期望的响应数据类型，如 json、arraybuffer、blob
@@ -309,7 +336,7 @@ Array.prototype.let = function (predicate = null) {
  */
 Promise.prototype.response2array = function () {
     return this.then(function (res) {
-        const { responseText } = res;
+        const {responseText} = res;
         if (!responseText) {
             // response 转化 Uint8Array 失败
             throw "response translating Uint8Array failed."
@@ -552,6 +579,50 @@ function parseURL(value) {
 }
 
 /**
+ * 链接解析获取文件后缀
+ * @param {URL|String|Object} value
+ * @return {string|null}
+ */
+function url2suffix(value) {
+    let url;
+    if (value instanceof URL) {
+        url = value
+    } else if (isStr(value)) {
+        value = value.trim();
+        if (isValidStr(value)) {
+            if (value.startsWith("//")) {
+                value = location.protocol + value;
+            } else if (value.startsWith("/")) {
+                value = location.origin + value;
+            } else if (!value.startsWith("http")) {
+                value = location.origin + "/" + value;
+            }
+            try {
+                url = new URL(value);
+            } catch (err) {
+                return null;
+            }
+        } else {
+            return null;
+        }
+    } else if (value instanceof Object && "href" in value) {
+        try {
+            url = new URL(value.href);
+        } catch (err) {
+            return null;
+        }
+    }
+    let splits = url.pathname.split("/");
+    let name = splits[splits.length - 1];
+    splits = name.split(".")
+    if (splits.length > 1) {
+        return splits[splits.length - 1];
+    } else {
+        return null;
+    }
+}
+
+/**
  * 查询元素
  * @param {Document} doc - 文档
  * @param {String} value - 节点规则
@@ -668,14 +739,14 @@ function str2document(value) {
  * @returns {Document}
  */
 function response2document(value) {
-    const { finalUrl, responseText, } = value;
+    const {finalUrl, responseText,} = value;
     const doc = str2document(responseText);
     if (!doc) {
         return null;
     }
     let node = doc.querySelector("head > base");
     if (!node) {
-        const { origin } = parseURL(finalUrl);
+        const {origin} = parseURL(finalUrl);
         node = doc.createElement("base");
         node.setAttribute("href", origin);
         doc.head.appendChild(node);
@@ -853,7 +924,7 @@ function xmlhttpRequest(value, options = {}) {
     };
     return new Promise(function (resolve, reject) {
         let timestamp = new Date();
-        // noinspection JSUnresolvedFunction
+        // noinspection JSUnresolvedFunction,JSUnusedGlobalSymbols
         GM_xmlhttpRequest(Object.assign(body, {
             // 回调函数参数
             onloadstart: function (response) {
@@ -958,7 +1029,7 @@ async function translate(value) {
     const res = await request("https://www.google.com/async/translate?vet=12ahUKEwixq63V3Kn3AhUCJUQIHdMJDpkQqDh6BAgCECw..i&ei=CbNjYvGCPYLKkPIP05O4yAk&yv=3", 10, {
         method: 'POST',
         responseType: '',
-        data: { "async": `translate,sl:auto,tl:zh-CN,st:${st},id:1650701080679,qc:true,ac:false,_id:tw-async-translate,_pms:s,_fmt:pc`, }
+        data: {"async": `translate,sl:auto,tl:zh-CN,st:${st},id:1650701080679,qc:true,ac:false,_id:tw-async-translate,_pms:s,_fmt:pc`,}
     }).then(function (res) {
         return response2document(res);
     });
@@ -1014,11 +1085,10 @@ class Link {
     #search;
 
     constructor(host, path = null, search = null) {
-        function _checkType(value) {
+        const checkType = function (value) {
             return isValidStr(value) || value instanceof RegExp
         }
-
-        if (!(_checkType(host) || all(host, _checkType))) {
+        if (!(checkType(host) || all(host, checkType))) {
             throw "host must be string or Regex.";
         }
         this.#host = host;
@@ -1038,9 +1108,13 @@ class Link {
         return this.#search;
     }
 
-    // noinspection SpellCheckingInspection
+    /**
+     * 匹配
+     * @param href 链接
+     * @return {boolean}
+     */
     match(href) {
-        function _match(value, elements) {
+        const match = function (value, elements) {
             elements = elements || [];
             for (const element of elements) {
                 if (isStr(element) && value === element) {
@@ -1051,8 +1125,7 @@ class Link {
             }
             return false;
         }
-
-        function _input2values(value, defaultValue) {
+        const input2values = function (value, defaultValue) {
             const values = [];
             if (isStr(value)) {
                 values.push(value);
@@ -1061,21 +1134,24 @@ class Link {
             } else if (isIterable(value)) {
                 const vs = Array.from(value);
                 for (const v of vs) {
-                    values.push(..._input2values(v, defaultValue));
+                    values.push(...input2values(v, defaultValue));
                 }
             } else if (defaultValue) {
                 values.push(defaultValue);
             }
             return values;
         }
-
-        const { host, path, search } = this;
-
+        const {host, path, search} = this;
         href = href ?? location.href;
-        const value = parseURL(href);
-
-        return _match(value.hostname, _input2values(host)) && _match(value.pathname, _input2values(path, /.*/)) && _match(value.search, _input2values(search, /.*/));
-
+        let value;
+        try {
+            value = parseURL(href);
+        } catch (err) {
+            return false;
+        }
+        return match(value.hostname, input2values(host))
+            && match(value.pathname, input2values(path, /.*/))
+            && match(value.search, input2values(search, /.*/));
     }
 
 }
@@ -1146,19 +1222,4 @@ class Processor extends Runner {
     async process(...args) {
     }
 
-}
-
-// ---------------------------------- UI ----------------------------------
-
-function isGenerator(value) {
-    return Object.prototype.toString.call(value) === '[object Generator]';
-}
-
-function isAsyncGenerator(value) {
-    return Object.prototype.toString.call(value) === '[object AsyncGenerator]';
-}
-
-function isAnyGenerator(value) {
-    const tag = Object.prototype.toString.call(value);
-    return tag === '[object Generator]' || tag === '[object AsyncGenerator]';
 }
