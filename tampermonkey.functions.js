@@ -1223,3 +1223,216 @@ class Processor extends Runner {
     }
 
 }
+
+class NodeQuery extends Processor {
+
+    /**
+     * 执行节点
+     * @generator
+     * @param {Document} doc 页面文档
+     * @param {Function} node 节点的值
+     * @param {string|null} name 节点的名
+     * @returns {AsyncGenerator<Promise<Awaited<any>>, void, *>}
+     */
+    async* executeNode(doc, node, name) {
+        let result = node.call(this, doc, name);
+        if (result != null && result instanceof Promise) {
+            result = await result;
+        }
+        // noinspection JSUnresolvedReference
+        if (result != null && !isStr(result) && (isIterable(result) || isAnyGenerator(result))) {
+            for await (const element of result) {
+                yield element
+            }
+        } else {
+            yield result;
+        }
+    }
+
+    /**
+     *
+     * @generator
+     * @param {Document} doc 页面文档
+     * @param {*} node 节点的值
+     * @param {string|null} name 节点的名
+     * @param {string|null} attribute 属性
+     * @param {string|null} property 属性
+     * @param {number|null} start 开始
+     * @param {number|null} end   结尾
+     * @returns {AsyncGenerator<*, void, void>}
+     */
+    async* queryNode({doc, node, name, attribute, property, start, end}) {
+        const convert = function (target, names = null) {
+            if (!target) {
+                return null;
+            }
+            const hasOwn = function (owner, names) {
+                names = names || [];
+                if (!isValidIterable(names) || !owner) {
+                    return false;
+                }
+                for (const name of names) {
+                    if (!Object.hasOwn(owner, name)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            const values = [];
+            if (isValidStr(target)) {
+                values.push({key: target.trim(), name: null});
+            } else if (hasOwn(target, names)) {
+                values.push(target);
+            } else if (!isStr(target) && isValidIterable(target)) {
+                for (let element of target) {
+                    let vs = convert(element, names);
+                    values.push(...vs);
+                }
+            } else {
+                // 其他类型则略过
+                log(`${target} can not be process.`);
+            }
+            return values.distinct(function (v) {
+                return v?.name ?? JSON.stringify(v);
+            });
+        }
+        const get = function (node, attributes, properties) {
+            const noNameWrap = function (value) {
+                return Boolean(value.hasOwnProperty("name") && !Boolean(value["name"]?.trim()));
+            }
+            const valueFormat = function (value, format) {
+                if (format instanceof RegExp && format.test(value)) {
+                    let execArray = format.exec(value);
+                    return execArray[1] ?? execArray[0];
+                }
+                if (typeof format === "function") {
+                    return format(value)
+                }
+                return value;
+            }
+            attributes = attributes || [];
+            properties = properties || [];
+            let count = attributes.length + properties.length;
+            if (count === 0) {
+                return node;
+            } else if (count === 1 && all([...attributes, ...properties], noNameWrap)) {
+                // noinspection LoopStatementThatDoesntLoopJS
+                for (const {key} of attributes) {
+                    return node.getAttribute(key);
+                }
+                // noinspection LoopStatementThatDoesntLoopJS
+                for (const {key} of properties) {
+                    return node[key];
+                }
+            } else {
+                const obj = {};
+                for (const {key, name, format} of attributes) {
+                    const n = name || key;
+                    const value = node.getAttribute(key);
+                    obj[n] = valueFormat.call(this, value, format);
+                }
+                for (const {key, name, format} of properties) {
+                    const n = name || key;
+                    const value = node[key];
+                    obj[n] = valueFormat.call(this, value, format);
+                }
+                return obj;
+            }
+        }
+        const names = ["key", "name"];
+        const attributes = convert(attribute, names);
+        const properties = convert(property, names);
+        let finds = this.query(doc, node, name)
+        let s = 0;
+        let e = finds.length;
+        start && (s = start)
+        end && (e = end)
+        finds = finds.slice(s, e);
+        for (const find of finds) {
+            const value = get(find, attributes, properties)
+            yield value;
+        }
+    }
+
+    /**
+     * 生成从 start 到 end 的整数序列
+     * @generator 标明这是一个生成器函数
+     * @param {Document} doc 页面文档
+     * @param {string|null} node 节点的值
+     * @param {string|null} name 节点的名
+     * @returns {AsyncGenerator<*, void, *>}
+     */
+    async* processNode(doc, node, name = null) {
+        const obj = this;
+        name = name ?? Object.keys(this).find(function (k) {
+            return node === obj[k];
+        });
+        if (!name) {
+            throw "can not found name";
+        }
+        let elements;
+        if (isStr(node)) {
+            elements = [{node: node}];
+        } else if (isIterable(node)) {
+            elements = node;
+        } else {
+            elements = [node];
+        }
+        for (const element of elements) {
+            if (typeof element === "function") {
+                yield* this.executeNode(doc, element, name);
+            } else {
+                // noinspection JSCheckFunctionSignatures
+                yield* this.queryNode({doc: doc, node: element, name: name, ...element});
+            }
+        }
+    }
+
+    /**
+     * 解析获取节点的值
+     * @param {Document} doc 页面文档
+     * @param {*|null} node 节点的值
+     * @param {string|null} name 节点的名
+     * @returns {Promise<*>}
+     */
+    async node2value(doc, node, name = null) {
+        if (!node) {
+            return null;
+        }
+        for await (let element of this.processNode(doc, node, name)) {
+            if (!element) {
+                continue;
+            }
+            return element;
+        }
+        return null;
+    }
+
+    /**
+     * 解析获取节点的值(列表)
+     * @param {Document} doc 页面文档
+     * @param {*|null} node 节点的值
+     * @param {string|null} name 节点的名
+     * @returns {Promise<Array<*>>}
+     */
+    async node2values(doc, node, name = null) {
+        const values = [];
+        if (!node) {
+            return values;
+        }
+        for await (const element of this.processNode(doc, node, name)) {
+            if (!element) {
+                continue;
+            }
+            if (isStr(element)) {
+                values.push(element);
+            } else if (isIterable(element)) {
+                values.push(...element);
+            } else {
+                values.push(element);
+            }
+        }
+        return values;
+    }
+
+}
