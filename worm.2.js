@@ -1,25 +1,28 @@
 // ==UserScript==
-// @name            蠕虫2
+// @name            蠕虫 2
 // @namespace       http://tampermonkey.net/
-// @version         0.1
+// @version         0.2
 // @description     特定站点的资源下载器
 // @author          Mercer
 // @icon            https://raw.githubusercontent.com/luhaibing/common-js-functions/main/worm.webp
-
 // @match           *://*/*
-
 // @require         https://raw.githubusercontent.com/luhaibing/common-js-functions/refs/heads/main/tampermonkey.functions.js
-
+// @require         https://cdn.bootcss.com/FileSaver.js/1.3.2/FileSaver.min.js
+// @require         https://cdn.bootcss.com/jszip/3.1.4/jszip.min.js
+// @require         https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js
 // @grant           GM_xmlhttpRequest
 // @grant           GM_setClipboard
 // @grant           GM_download
 // @grant           window.close
-
 // ==/UserScript==
 
 (function () {
     'use strict';
 
+    /** @type {HTMLButtonElement} */
+    let btn;
+
+    // noinspection JSUnusedLocalSymbols
     class Entity {
 
         static MAX_LENGTH = 250
@@ -77,15 +80,15 @@
 
         /**
          *
-         * @param {String} href
          * @param {String} name
+         * @param {String} href
          * @param {RegExp|null} pattern
          * @param {String|null} default_suffix
          * @param {Number} type
          * @param {Document} doc
          * @returns {Entity|null}
          */
-        static href(href, name, pattern, default_suffix, type = Entity.HREF, {doc}) {
+        static href(name, href, pattern, default_suffix, type = Entity.HREF, {doc}) {
             if (!name) {
                 if (!pattern || !default_suffix) {
                     throw "pattern and default_suffix can not be blank.";
@@ -94,7 +97,7 @@
                 let base_name = href.substring(i1 + 1);
                 let array = pattern.exec(base_name);
                 // noinspection JSUnresolvedFunction
-                let [_, file_name, suffix] = array || [href, MD5(href), default_suffix];
+                let [_, file_name, suffix] = array || [href, CryptoJS.MD5(href).toString(), default_suffix];
                 name = `${file_name.replace(/\//g, " ")}.${suffix || default_suffix}`;
             }
             if (!href) {
@@ -109,69 +112,93 @@
 
         /**
          *
-         * @param {String} href
          * @param {String} name
+         * @param {String} href
          * @param {Document} doc
          * @returns {Entity}
          */
-        static cover(href, name, doc) {
-            return Entity.href(href, name, null, null, Entity.COVER, {doc: doc});
+        static cover(name, href, doc) {
+            return Entity.href(name, href, null, null, Entity.COVER, {doc: doc});
         }
 
         /**
          *
-         * @param {String} href
          * @param {String} name
+         * @param {String} href
          * @param {Document} doc
          * @returns {Entity}
          */
-        static photo(href, name, doc) {
-            if (!/^https?/.test(href)) {
-                let base_Url = doc.baseURI;
-                href = `${base_Url.slice(0, -1)}${href}`
-            }
-            return Entity.href(href, name, Entity.P, "jpg", Entity.PHOTO, {doc: doc});
-        }
-
-        /**
-         *
-         * @param {String} href
-         * @param {String} name
-         * @param {Document} doc
-         * @returns {Entity}
-         */
-        static video(href, name, doc) {
-            if (!/^https?/.test(href)) {
+        static photo(name, href, doc) {
+            if (href.startsWith("//")) {
+                let protocol;
+                try {
+                    protocol = parseURL(doc.baseURI).protocol;
+                } catch (error) {
+                    protocol = "https:"
+                }
+                href = `${protocol}${href}`;
+            } else if (!/^https?/.test(href)) {
                 let base_Url = doc.baseURI;
                 href = `${base_Url.slice(0, -1)}${href}`;
             }
-            return Entity.href(href, name, Entity.V, "mp4", Entity.VIDEO, {doc: doc});
+            return Entity.href(name, href, Entity.P, "jpg", Entity.PHOTO, {doc: doc});
         }
 
         /**
          *
-         * @param {String} href
          * @param {String} name
+         * @param {String} href
          * @param {Document} doc
          * @returns {Entity}
          */
-        static file(href, name, doc) {
-            if (!/^https?/.test(href)) {
+        static video(name, href, doc) {
+            if (href.startsWith("//")) {
+                let protocol;
+                try {
+                    protocol = parseURL(doc.baseURI).protocol;
+                } catch (error) {
+                    protocol = "https:"
+                }
+                href = `${protocol}${href}`;
+            } else if (!/^https?/.test(href)) {
                 let base_Url = doc.baseURI;
                 href = `${base_Url.slice(0, -1)}${href}`;
             }
-            return Entity.href(href, name, null, null, Entity.FILE, {doc: doc});
+            return Entity.href(name, href, Entity.V, "mp4", Entity.VIDEO, {doc: doc});
         }
 
         /**
          *
+         * @param {String} name
+         * @param {String} href
+         * @param {Document} doc
+         * @returns {Entity}
+         */
+        static file(name, href, doc) {
+            if (href.startsWith("//")) {
+                let protocol;
+                try {
+                    protocol = parseURL(doc.baseURI).protocol;
+                } catch (error) {
+                    protocol = "https:"
+                }
+                href = `${protocol}${href}`;
+            } else if (!/^https?/.test(href)) {
+                let base_Url = doc.baseURI;
+                href = `${base_Url.slice(0, -1)}${href}`;
+            }
+            return Entity.href(name, href, null, null, Entity.FILE, {doc: doc});
+        }
+
+        /**
+         *
+         * @param {String} name
          * @param {String} content
-         * @param {String} name
          * @param {Document} doc
          * @returns {Entity}
          */
-        static text(content, name, doc) {
-            return new Entity(content, name, Entity.TEXT);
+        static text(name, content, {doc}) {
+            return new Entity(name, content, Entity.TEXT);
         }
     }
 
@@ -256,13 +283,13 @@
                 return isValidIterable(values) ? values : null;
             }
 
-            this.actors = (this.actors || []).distinct(predicate).correct(correction);
-            this.categories = (this.categories || []).distinct(predicate).correct(correction);
-            this.tags = (this.tags || []).distinct(predicate).correct(correction);
+            this.actors = (this.actors || []).distinct(predicate).let(correction);
+            this.categories = (this.categories || []).distinct(predicate).let(correction);
+            this.tags = (this.tags || []).distinct(predicate).let(correction);
 
-            this.photos = (this.photos || []).distinct().correct(correction);
-            this.videos = (this.videos || []).distinct().correct(correction);
-            this.manages = (this.manages || []).distinct((value) => value.code).correct(correction);
+            this.photos = (this.photos || []).distinct().let(correction);
+            this.videos = (this.videos || []).distinct().let(correction);
+            this.manages = (this.manages || []).distinct((value) => value.code).let(correction);
 
         }
 
@@ -308,20 +335,46 @@
 
     }
 
-    /**
-     * 需要下载的内容
-     */
-    class Result {
-        /** @type {string|Date|null} 文件名 */
+    class Download {
+        /** @type {string} 文件名 */
         name;
+
+        constructor(name) {
+            if (!isValidStr(name)) {
+                throw "name must be a valid string.";
+            }
+            this.name = name.trim();
+        }
+    }
+
+    /**
+     * 需要下载的内容(普通文件)
+     */
+    class RemoteFile extends Download {
+        /** @type {string} 文件链接 */
+        href;
+
+        constructor(name, href) {
+            super(name);
+            if (!isValidStr(href)) {
+                throw "href must be a valid string.";
+            }
+            this.href = href.trim();
+        }
+    }
+
+    /**
+     * 需要下载的内容(压缩包)
+     */
+    class ZipFile extends Download {
         /** @type {Array<Entity>} 需要下载的内容数组 */
         entries;
 
         constructor(name, entries) {
+            super(name);
             if (entries && !isIterable(entries)) {
                 throw "entries must be an iterable.";
             }
-            this.name = name.trim();
             entries = (entries && Array.from(entries)) || [];
             entries = entries.filter(function (entry) {
                 return entry;
@@ -330,26 +383,33 @@
         }
 
         /**
-         *
-         * @param resource
-         * @param doc
-         * @return {Result}
+         * 结构
+         * @param {Entity|String|Object} value
+         * @return {*[]}
          */
-        static from(resource, doc) {
-            const destruction = function (value) {
-                let href = null;
-                let name = null;
-                if (value instanceof Entity) {
-                    href = value.content ?? value["content"];
-                    name = value.name ?? value["name"];
-                } else if (value.hasOwnProperty("name") && value.hasOwnProperty("content")) {
-                    href = value.content ?? value["content"];
-                    name = value.name ?? value["name"];
-                } else if (isValidStr(value)) {
-                    href = value;
-                }
-                return [href, name];
+        static destruction(value) {
+            let href = null;
+            let name = null;
+            if (value instanceof Entity) {
+                href = value.content ?? value["content"];
+                name = value.name ?? value["name"];
+            } else if (value.hasOwnProperty("name") && value.hasOwnProperty("content")) {
+                href = value.content ?? value["content"];
+                name = value.name ?? value["name"];
+            } else if (isValidStr(value)) {
+                href = value;
             }
+            return [href, name];
+        }
+
+        /**
+         *
+         * @param {Resource} resource
+         * @param {String|null} filename
+         * @param {Document} doc
+         * @return {Download}
+         */
+        static from(resource, filename, doc) {
             let {
                 title,
                 code,
@@ -369,11 +429,12 @@
                 } else if (cover instanceof Object && cover.hasOwnProperty("name") && cover.hasOwnProperty("content")) {
                     const name = cover["name"];
                     const href = cover["content"];
-                    cover = Entity.cover(href, name, doc);
-                } else if (cover instanceof String && cover.trim().length > 0) {
+                    cover = Entity.cover(name, href, doc);
+                } else if (isValidStr(cover)) {
                     try {
                         const url = parseURL(cover);
                         const splits = url.pathname.split("/");
+                        // noinspection JSCheckFunctionSignatures
                         const suffix = Entity.P.exec(cover)?.[2] || "jpg";
                         let name;
                         if (isValidStr(code)) {
@@ -388,7 +449,8 @@
                                 name = filename + "." + suffix
                             }
                         }
-                        cover = Entity.cover(cover, name, doc);
+                        // noinspection JSCheckFunctionSignatures
+                        cover = Entity.cover(name, cover, doc);
                     } catch (e) {
                         log(e)
                         cover = null
@@ -398,37 +460,43 @@
             }
 
             for (const value of photos ?? []) {
-                const [href, name] = destruction(value);
-                const entry = Entity.photo(href, name, doc);
+                const [href, name] = ZipFile.destruction(value);
+                const entry = Entity.photo(name, href, doc);
                 entries.push(entry);
             }
 
             for (const value of videos ?? []) {
-                const [href, name] = destruction(value);
-                const entry = Entity.video(href, name, doc);
+                const [href, name] = ZipFile.destruction(value);
+                const entry = Entity.video(name, href, doc);
                 entries.push(entry);
             }
 
             for (const value of attachments ?? []) {
-                const [href, name] = destruction(value);
-                const entry = Entity.file(href, name, doc);
+                const [href, name] = ZipFile.destruction(value);
+                const entry = Entity.file(name, href, doc);
                 entries.push(entry);
             }
 
             if (isValidIterable(manages)) {
-                // let manages_file_name = Model.correction_name_length(file_names, "txt", "manages_file_name");
-                // manages_file_name = manages_file_name.replaceAll("/", " ");
-                // noinspection JSUnusedLocalSymbols
-                // entries.push(Entity.texts(`${manages_file_name}.txt`, manages, ["name", "code", function (previousValue, currentValue, key) {
-                //     return !previousValue ? currentValue : null;
-                // }]));
                 const names = {};
+                let code;
+                let name;
                 for (const manage of manages) {
-                    let code = manage["content"];
+                    if (isValidStr(manage)) {
+                        code = manage;
+                        name = CryptoJS.MD5(code).toString();
+                    } else if (manage instanceof Entity) {
+                        code = manage["content"];
+                        name = manage["name"].trim();
+                    } else if (manage && manage["content"]) {
+                        code = manage["content"];
+                        name = manage["name"].trim() ?? CryptoJS.MD5(code).toString();
+                    } else {
+                        continue
+                    }
                     if (Entity.MANAGE_P.test(code)) {
                         code = Entity.MANAGE_P.exec(code)[0];
                     }
-                    let name = manage["name"].trim();
                     if (name.endsWith(".torrent")) {
                         name = name.slice(0, -8);
                     }
@@ -447,249 +515,39 @@
                     }
                     filename = `U/${filename}`;
                     const content = `[InternetShortcut]\r\nURL=${code}\r\nIconIndex=0\r\nIDList=\r\nHotKey=0\r\n[{000214A0-0000-0000-C000-000000000046}]`;
-                    entries.push(Entity.text(content, filename,))
+                    entries.push(Entity.text(filename, content, {doc}))
                 }
             }
 
-            let actor = actors && actors.length > 1 ? ` - ${actors.map(function (e) {
-                return e.name ?? e.innerText ?? e.toString();
-            }).join('、')}` : "";
-
-            let filename;
-            if (code && isValidStr(code) && title && isValidStr(title)) {
-                // if (title.trim().startsWith(code.trim())) {
-                if (title.trim().includes(code.trim())) {
+            if (!filename) {
+                let actor = actors && actors.length > 1 ? ` - ${actors.map(function (e) {
+                    // noinspection JSUnresolvedReference
+                    return e.name ?? e.innerText ?? e.toString();
+                }).join('、')}` : "";
+                if (code && isValidStr(code) && title && isValidStr(title)) {
+                    if (title.trim().includes(code.trim())) {
+                        filename = title.trim();
+                    } else {
+                        filename = `${code.trim()} ${title.trim()}`;
+                    }
+                } else if (code && isValidStr(code)) {
+                    filename = code.trim();
+                } else if (title && isValidStr(title)) {
                     filename = title.trim();
                 } else {
-                    filename = `${code.trim()} ${title.trim()}`;
+                    filename = Date.now().toString();
                 }
-            } else if (code && isValidStr(code)) {
-                filename = code.trim();
-            } else if (title && isValidStr(title)) {
-                filename = title.trim();
-            } else {
-                filename = Date.now().toString();
-            }
-            if (actor.length > 0) {
-                actor = ` - ${actor}`
-            }
-            if (filename.length + actor.length <= Entity.MAX_LENGTH) {
-                filename = filename + actor;
-            } else {
-                const diff = filename.length + actor.length - Entity.MAX_LENGTH
-                filename = filename.substring(Entity.MAX_LENGTH - diff) + actor;
-            }
-            filename = `${filename}.zip`
-            return new Result(filename, entries);
-        }
-
-    }
-
-    class NodeQuery extends Processor {
-
-        /**
-         * 执行节点
-         * @generator
-         * @param {Document} doc 页面文档
-         * @param {Function} node 节点的值
-         * @param {string|null} name 节点的名
-         * @returns {AsyncGenerator<Promise<Awaited<any>>, void, *>}
-         */
-        async* execute_node(doc, node, name) {
-            const result = node(doc, name);
-            if (result != null && isIterable(result)) {
-                for await (const element of result) {
-                    yield element
+                if (actor.length > 0) {
+                    actor = ` - ${actor}`;
                 }
-            } else {
-                yield result;
-            }
-        }
-
-        /**
-         *
-         * @generator
-         * @param {Document} doc 页面文档
-         * @param {*} node 节点的值
-         * @param {string|null} name 节点的名
-         * @param {string|null} attribute 属性
-         * @param {string|null} property 属性
-         * @param {number|null} start 开始
-         * @param {number|null} end   结尾
-         * @returns {AsyncGenerator<*, void, void>}
-         */
-        async* query_node({doc, node, name, attribute, property, start, end}) {
-            const convert = function (target, names = null) {
-                if (!target) {
-                    return null;
-                }
-                const hasOwn = function (owner, names) {
-                    names = names || [];
-                    if (!isValidIterable(names) || !owner) {
-                        return false;
-                    }
-                    for (const name of names) {
-                        if (!Object.hasOwn(owner, name)) {
-                            return false;
-                        }
-                    }
-                    return true;
-                }
-                const values = [];
-                if (isValidStr(target)) {
-                    values.push({key: target.trim(), name: null});
-                } else if (hasOwn(target, names)) {
-                    values.push(target);
-                } else if (!isStr(target) && isValidIterable(target)) {
-                    for (let element of target) {
-                        let vs = convert(element, names);
-                        values.push(...vs);
-                    }
+                if (filename.length + actor.length <= Entity.MAX_LENGTH) {
+                    filename = filename + actor;
                 } else {
-                    // 其他类型则略过
-                    log(`${target} can not be process.`);
-                }
-                return values.distinct(function (v) {
-                    return v?.name ?? v;
-                });
-            }
-            const get = function (node, attributes, properties) {
-                const noNameWrap = function (value) {
-                    return Boolean(value.hasOwnProperty("name") && !Boolean(value["name"]?.trim()));
-                }
-                const valueFormat = function (value, format) {
-                    if (format instanceof RegExp && format.test(value)) {
-                        let execArray = format.exec(value);
-                        return execArray[1] ?? execArray[0];
-                    }
-                    if (typeof format === "function") {
-                        return format(value)
-                    }
-                    return value;
-                }
-                attributes = attributes || [];
-                properties = properties || [];
-                let count = attributes.length + properties.length;
-                if (count === 0) {
-                    return node;
-                } else if (count === 1 && all([...attributes, ...properties], noNameWrap)) {
-                    // noinspection LoopStatementThatDoesntLoopJS
-                    for (const {key} of attributes) {
-                        return node.getAttribute(key);
-                    }
-                    // noinspection LoopStatementThatDoesntLoopJS
-                    for (const {key} of properties) {
-                        return node[key];
-                    }
-                } else {
-                    const obj = {};
-                    for (const {key, name, format} of attributes) {
-                        const n = name || key;
-                        const value = node.getAttribute(key);
-                        obj[n] = valueFormat.call(this, value, format);
-                    }
-                    for (const {key, name, format} of properties) {
-                        const n = name || key;
-                        const value = node[key];
-                        obj[n] = valueFormat.call(this, value, format);
-                    }
-                    return obj;
+                    const diff = filename.length + actor.length - Entity.MAX_LENGTH
+                    filename = filename.substring(Entity.MAX_LENGTH - diff) + actor;
                 }
             }
-            const names = ["key", "name"];
-            const attributes = convert(attribute, names);
-            const properties = convert(property, names);
-            let finds = this.query(node, doc, name)
-            let s = 0;
-            let e = finds.length;
-            start && (s = start)
-            end && (e = end)
-            finds = finds.slice(s, e);
-            for (const find of finds) {
-                const value = get(find, attributes, properties)
-                yield value;
-            }
-        }
-
-        /**
-         * 生成从 start 到 end 的整数序列
-         * @generator 标明这是一个生成器函数
-         * @param {Document} doc 页面文档
-         * @param {string|null} node 节点的值
-         * @param {string|null} name 节点的名
-         * @returns {AsyncGenerator<*, void, *>}
-         */
-        async* process_node(doc, node, name = null) {
-            const obj = this;
-            name = name ?? Object.keys(this).find(function (k) {
-                return node === obj[k];
-            });
-            if (!name) {
-                throw "can not found name";
-            }
-            let elements;
-            if (isStr(node)) {
-                elements = [{node: node}];
-            } else if (isIterable(node)) {
-                elements = node;
-            } else {
-                elements = [node];
-            }
-            for (const element of elements) {
-                if (typeof element === "function") {
-                    yield* this.execute_node(doc, element, name);
-                } else {
-                    // noinspection JSCheckFunctionSignatures
-                    yield* this.query_node({doc: doc, node: element, name: name, ...element});
-                }
-            }
-        }
-
-        /**
-         * 解析获取节点的值
-         * @param {Document} doc 页面文档
-         * @param {*|null} node 节点的值
-         * @param {string|null} name 节点的名
-         * @returns {Promise<Array<*>>}
-         */
-        async node2value(doc, node, name = null) {
-            if (!node) {
-                return null;
-            }
-            for await (let element of this.process_node(doc, node, name)) {
-                if (!element) {
-                    continue;
-                }
-                return element;
-            }
-            return null;
-        }
-
-        /**
-         * 解析获取节点的值(列表)
-         * @param {Document} doc 页面文档
-         * @param {*|null} node 节点的值
-         * @param {string|null} name 节点的名
-         * @returns {Promise<Array<*>>}
-         */
-        async node2values(doc, node, name = null) {
-            const values = [];
-            if (!node) {
-                return values;
-            }
-            for await (const element of this.process_node(doc, node, name)) {
-                if (!element) {
-                    continue;
-                }
-                if (isStr(element)) {
-                    values.push(element);
-                } else if (isIterable(element)) {
-                    values.push(...element);
-                } else {
-                    values.push(element);
-                }
-            }
-            return values;
+            return new ZipFile(filename, entries);
         }
 
     }
@@ -699,20 +557,55 @@
      */
     class Site extends NodeQuery {
 
+        title;
+        code;
+        desc;
+        date;
+
+        cover;
+
+        actors;
+        categories;
+        tags;
+
+        photos;
+        videos;
+        manages;
+        attachments;
+
         constructor({host, path, search}) {
             super(host, path, search);
+        }
+
+        /**
+         * 下载完成保存时的文件名
+         * @param doc
+         * @param resource
+         * @return {Promise<String|null>}
+         */
+        async filename(doc, resource) {
+            const code = resource.code;
+            if (isValidStr(code)) {
+                return code;
+            }
+            const title = resource.title;
+            if (isValidStr(title)) {
+                return title;
+            }
+            return new Date().toString();
         }
 
         /**
          * 执行
          * @generator
          * @param {Document} doc - 页面文档
-         * @returns {AsyncGenerator<Result, void, *>}
+         * @returns {AsyncGenerator<Download, void, *>}
          */
         async* process(doc) {
             await super.process(doc);
-            let resource = await this.parse(doc);
-            yield Result.from(resource, doc);
+            const resource = await this.parse(doc);
+            const filename = await this.filename(doc, resource);
+            yield ZipFile.from(resource, filename, doc);
         }
 
         /**
@@ -896,8 +789,229 @@
 
     }
 
+    /**
+     * 分页站点
+     */
+    class PagingSite extends Site {
+
+        /**
+         * 下一页
+         */
+        next;
+
+        /**
+         * 页面内容、用于验证是否访问成功
+         */
+        children;
+
+        /**
+         * 导航
+         */
+        navigation;
+
+        // 指示器
+        display = true;
+
+        /**
+         * 下载子项
+         * @param {HTMLElement} node
+         * @param {Document} doc
+         * @param {Resource} resource
+         * @param {Number} index
+         * @param {String} original
+         * @return {AsyncGenerator<Download, void, *>}
+         */
+        async* processChild(node, doc, resource, index, original) {
+        }
+
+        /**
+         * 下载子项集
+         * @param {Document} doc
+         * @param {Resource} resource
+         * @param {Number} index
+         * @param {String} original
+         * @return {AsyncGenerator<Download, void, *>}
+         */
+        async* processChildren(doc, resource, index, original) {
+            let {children} = this;
+            const items = await this.node2values(doc, children, "page");
+            for (const item of items) {
+                yield* this.processChild(item, doc, resource, index, original);
+            }
+        }
+
+        /**
+         * 页面子项大小
+         * @param {Document} doc
+         * @param {Resource} resource
+         * @param {Number} index
+         * @param {String} original
+         * @return {Promise<number>}
+         */
+        async childCount(doc, resource, index, original) {
+            const children = await this.node2values(doc, this.children, "page");
+            return children.length;
+        }
+
+        async* process(doc) {
+            let {children, next, navigation, display} = this;
+            // 下一页链接
+            const node2next = async (doc, value) => {
+                let tries = 10;
+                let result;
+                while (tries > 0) {
+                    try {
+                        result = await this.node2value(doc, value, "next");
+                        return result;
+                    } catch (err) {
+                        log(err);
+                    } finally {
+                        tries--;
+                    }
+                }
+                return null;
+            };
+            // 下一页链接转 document
+            const next2document = async (value) => {
+                let tries = 10;
+                let h5;
+                let result;
+                while (tries > 0) {
+                    try {
+                        h5 = await html(value);
+                        result = await this.node2values(h5, children, "page");
+                        if (result) {
+                            return h5;
+                        }
+                    } catch (err) {
+                        log(err);
+                    } finally {
+                        tries--;
+                    }
+                }
+                return null;
+            };
+            const resource = await this.parse(doc);
+            // 指示器
+            let cursor;
+            if (display) {
+                cursor = button(function (view) {
+                    view.textContent = "连接中";
+                    Object.assign(view.style, {
+                        position: 'fixed',
+                        right: '15%',
+                        bottom: '25%',
+                        height: '46px',      // 高度保持固定
+                        borderRadius: '23px',
+                        backgroundColor: '#F44949',
+                        border: '1px solid #FFF',
+                        color: '#FFF',
+                        zIndex: '50',
+                        padding: "10px",
+                        // ========== 禁止换行 + 溢出处理 ==========
+                        whiteSpace: 'nowrap',          // 强制文字不换行
+                        overflow: 'hidden',           // 溢出隐藏
+                        textOverflow: 'ellipsis',     // 溢出显示省略号（可选）
+                    });
+                    document.body.appendChild(view);
+                });
+            }
+            // 预计子项总数
+            let total = 0;
+            // 已下载成功数
+            let downloaded = 0;
+            // 已跳过数
+            let skipped = 0;
+            // 渲染指示器
+            const renderCursor = function (value) {
+                if (isValidStr(value)) {
+                    cursor?.text(`${downloaded}/${skipped}/${total} ${value}`);
+                } else {
+                    cursor?.text(`${downloaded}/${skipped}/${total}`);
+                }
+            };
+            // 页码(从 0 开始)
+            let index = 0;
+            // 原始的链接
+            let original = location.href;
+            // 当前的 document
+            let current = doc;
+            current.href = original;
+            // 子项的容器
+            let container;
+            if (children) {
+                const find = await this.node2value(current, children);
+                find && (container = find.parentElement);
+            }
+            // 下一页的链接
+            let href;
+            let element;
+            let value;
+            let done;
+            let result;
+            let name;
+            do {
+                current.index = index;
+                // 将新的页面中的子项添加到原始页面
+                if (current !== doc) {
+                    try {
+                        const items = await this.node2values(current, children, "page");
+                        for (const item of items) {
+                            const node = doc.importNode(item, true);
+                            container.appendChild(node);
+                        }
+                    } catch (e) {
+                        log(e);
+                    }
+                }
+                // 使用新的页面的导航替换掉原始页面的导航
+                if (current !== doc && navigation != null) {
+                    try {
+                        const v1 = await this.node2value(doc, navigation, "navigation")
+                        const v2 = await this.node2value(current, navigation, "navigation")
+                        v1.parentNode.replaceChild(v2, v1);
+                    } catch (e) {
+                        log(e);
+                    }
+                }
+                const generator = this.processChildren(current, resource, index, original);
+                total += await this.childCount(current, resource, index, original);
+                do {
+                    try {
+                        element = await generator.next(result);
+                        value = element.value;
+                        done = element.done;
+                        log("child : " + value);
+                        if (value) {
+                            result = yield value;
+                            downloaded++;
+                            name = value?.name ?? (new Date().toString());
+                            renderCursor(name);
+                        }
+                    } catch (err) {
+                        skipped++;
+                        log(err)
+                    }
+                } while (!done)
+                href = await node2next(doc, next);
+                if (!href) {
+                    break
+                }
+                current = await next2document(href);
+                current && (current.href = href);
+                href && history.replaceState(null, null, href);
+                index++;
+            } while (current && navigation);
+            renderCursor("Done");
+        }
+
+    }
+
     // ----------------------------------------------------------------
 
+    // ---------------------- JavBus ----------------------
+
+    // noinspection JSUnusedGlobalSymbols
     class JavBus extends Site {
 
         constructor() {
@@ -923,7 +1037,7 @@
 
         code = [
             {
-                select: "div.col-md-3.info > p:nth-child(1) > span:nth-child(2)",
+                node: "div.col-md-3.info > p:nth-child(1) > span:nth-child(2)",
                 property: "innerText",
             },
             function (doc) {
@@ -932,40 +1046,1089 @@
             }]
 
         cover = {
-            select: "a.bigImage[href] > img[src]",
+            node: "a.bigImage[href] > img[src]",
             property: "src",
         }
 
         date = "//div[contains(@class,'info')]/p/span[@class='header' and (starts-with(text(),'發行日期') or starts-with(text(),'출시일') or starts-with(text(),'発売日') or starts-with(text(),'Release Date'))]/../text()";
 
         categories = {
-            select: "//div[contains(@class,'info')]/p/span[@class='header' and (starts-with(text(),'系列') or starts-with(text(),'시리즈') or starts-with(text(),'シリーズ') or starts-with(text(),'Series'))]/../a[@href]",
+            node: "//div[contains(@class,'info')]/p/span[@class='header' and (starts-with(text(),'系列') or starts-with(text(),'시리즈') or starts-with(text(),'シリーズ') or starts-with(text(),'Series'))]/../a[@href]",
             attribute: "href",
-            property: {k: "innerText", n: "name"},
+            property: {key: "innerText", name: "name"},
         }
 
         tags = {
-            select: "div.info > p > span.genre > label > a[href]",
-            attribute: {k: "href", n: "href"},
-            property: {k: "innerText", n: "name"},
+            node: "div.info > p > span.genre > label > a[href]",
+            attribute: {key: "href", n: "href"},
+            property: {key: "innerText", n: "name"},
         }
 
         photos = {
-            select: "#sample-waterfall > a.sample-box[href]",
+            node: "#sample-waterfall > a.sample-box[href]",
             attribute: "href",
         }
 
         manages = {
-            select: "#magnet-table > tr > td:first-child > a[href]",
-            // attribute: {k: "href", n: "code", format: /magnet:\?xt=urn:btih:[a-zA-Z0-9]{40}/},
-            attribute: {k: "href", n: "code", format: Entity.MANAGE_PATTERN},
-            property: {k: "innerText", n: "name"},
+            node: "#magnet-table > tr > td:first-child > a[href]",
+            // attribute: {key: "href", name: "code", format: /magnet:\?xt=urn:btih:[a-zA-Z0-9]{40}/},
+            attribute: {key: "href", name: "code", format: Entity.MANAGE_PATTERN},
+            property: {key: "innerText", name: "name"},
         }
 
         actors = {
-            select: "div.info > ul > div.star-box > li > div.star-name > a[href]",
+            node: "div.info > ul > div.star-box > li > div.star-name > a[href]",
             attribute: ["href"],
-            property: {k: "innerText", n: "name"},
+            property: {key: "innerText", name: "name"},
+        }
+
+        async filename(doc, resource) {
+            const code = resource.code;
+            const title = resource.title;
+            const actors = resource.actors;
+            if (isValidStr(code) && isValidIterable(actors) && actors.length > 1) {
+                let actor = actors && actors.length > 1 ? ` - ${actors.map(function (e) {
+                    return e.name ?? e.innerText ?? e.toString();
+                }).join('、')}` : "";
+                return `${code} - ${actor}`;
+            } else if (isValidStr(code)) {
+                return code;
+            } else if (isValidStr(title)) {
+                return title;
+            } else {
+                return new Date().toString();
+            }
+        }
+
+        async* process(doc) {
+            const resource = await this.parse(doc);
+            const filename = await this.filename(doc, resource);
+            const zip = ZipFile.from(resource, filename, doc);
+            if (zip instanceof ZipFile) {
+                const find = zip.entries.find(function (entry) {
+                    return entry.type === Entity.COVER
+                });
+                if (find) {
+                    yield new RemoteFile(find.name, find.content)
+                }
+            }
+            yield zip
+        }
+
+    }
+
+    // ---------------------- MaDou ----------------------
+
+    // noinspection JSUnusedGlobalSymbols
+    class MaDou extends Site {
+
+        constructor() {
+            super({
+                host: [
+                    /madouqu\d+\.cc/i,
+                    /madouqu\.com/i
+                ],
+                path: /^\/video\/[0-9a-z]{3,}(-\d+)?\/$/i
+            });
+        }
+
+        title = async function (doc) {
+            let text = (await this.node2values(doc, `div.entry-wrapper > div.entry-content > p`, "title"))
+                .map(function (node) {
+                    return node.innerText
+                })
+                .filter(function (node) {
+                    return isValidStr(node);
+                })[1];
+            let indexOf = text.indexOf("：");
+            return text.substring(indexOf + 1).split("\n")[0];
+        }
+
+        code = async function (doc) {
+            let finds = await this.node2values(doc, `div.entry-wrapper > div.entry-content > p`, "code");
+            let text = finds.map(function (node) {
+                return node.innerText
+            }).filter(function (node) {
+                return isValidStr(node);
+            })[0];
+
+            if (!text) {
+                log("href : ", location.href, " ; ", "doc : ", doc.innerHTML)
+            }
+
+            let indexOf = text.indexOf("：");
+            let sub_text = text.substring(indexOf + 1);
+            let p = /[a-zA-Z0-9]/;
+            if (p.test(sub_text)) {
+                return sub_text;
+            }
+            let splits = doc.URL.split("/");
+            let code = splits[splits.length - 2].toUpperCase();
+            let pattern = /([a-zA-Z]*)[-_]?(\d*)/;
+            let execArray = pattern.exec(code);
+            if (!execArray) {
+                return sub_text;
+            }
+            let [_, g, c] = execArray;
+            return c ? `${g}-${c}` : g;
+        }
+
+        actors = {
+            node: "div.entry-wrapper > div.entry-tags > a[href][rel=tag][data-wpel-link=internal]",
+            property: "innerText",
+            attribute: "href",
+        }
+
+        cover = {
+            node: "div.entry-wrapper > div.entry-content > p > img[src]", attribute: "src",
+        }
+
+        manages = {
+            node: "div.entry-wrapper > div.entry-content > p > a[href][data-wpel-link=external]",
+            attribute: "href",
+        }
+
+        async* process(doc) {
+            const resource = await this.parse(doc);
+            const zip = ZipFile.from(resource, null, doc);
+            if (zip instanceof ZipFile) {
+                const find = zip.entries.find(function (entry) {
+                    return entry.type === Entity.COVER
+                });
+                if (find) {
+                    yield new RemoteFile(find.name, find.content)
+                }
+            }
+            yield zip
+            await delay(10 ** 3 ** 3);
+            window.close();
+        }
+
+    }
+
+    // ---------------------- R18hub ----------------------
+
+    class R18hubPhotos extends Site {
+
+        // https://r18hub.com/photo/blowpass-layla-jenner-mick-blue-starri-skinny-examination
+        constructor() {
+            super({
+                host: "r18hub.com",
+                path: /^\/photo\//i,
+            });
+        }
+
+        title = async function (doc) {
+            const find = doc.querySelector("head > meta[name='twitter:title']");
+            return find.content;
+        }
+
+        photos = async function* (doc) {
+            const finds = await this.node2values(doc, "ul#photos > li.photo-grid-item  a[src]", "photos")
+            let href;
+            for await (const find of finds) {
+                href = find.getAttribute("src");
+                if (href) {
+                    yield `${href}?a=1`;
+                }
+            }
+        }
+
+        actors = function* (doc) {
+            const elements = doc.querySelectorAll("div.model-items > div.model-item > a.model");
+            for (const element of elements) {
+                const name = element.target;
+                const content = element.href;
+                yield {name, content};
+            }
+        }
+
+        async* process(doc) {
+            const generator = super.process(doc);
+            for await (const element of generator) {
+                if (element instanceof ZipFile) {
+                    const entries = element.entries.filter(e => e.type !== Entity.TEXT);
+                    yield new ZipFile(element.name, entries);
+                } else {
+                    yield element;
+                }
+            }
+        }
+
+    }
+
+    // noinspection JSUnusedGlobalSymbols
+    class R18hubActor extends Site {
+
+        // https://r18hub.com/model/layla-jenner
+        constructor() {
+            super({
+                host: "r18hub.com",
+                path: /^\/model\//i,
+            });
+        }
+
+        next = async function (doc) {
+            const find = await this.node2value(doc, "//li[@class='active']/following-sibling::li[1]/a", "next");
+            if (find && (doc.href === find.href || (doc.location && doc.location.href === find.href))) {
+                return null;
+            } else if (find != null) {
+                return find;
+            } else {
+                return null;
+            }
+        }
+
+        title = {
+            node: "ul.information > li.text-single-ellipsis > h1 > a > span",
+            property: "innerText",
+        }
+
+        cover = async function (doc) {
+            const find = await this.node2value(doc, "div.information > div.avatar.card-image", "cover")
+            let href = find.getAttribute("data-src");
+            if (href) {
+                return `${href}?a=1`;
+            } else {
+                return null
+            }
+        }
+
+        async* process(doc) {
+
+            function url2suffix(value) {
+                try {
+                    let url = parseURL(value);
+                    let splits = url.pathname.split("/");
+                    let name = splits[splits.length - 1];
+                    splits = name.split(".")
+                    if (splits.length > 1) {
+                        return splits[splits.length - 1];
+                    } else {
+                        return null;
+                    }
+                } catch (error) {
+                    throw error;
+                }
+            }
+
+            let a;
+            let href;
+            let d = doc;
+            a = await this.node2value(d, this.next);
+            let content = d.querySelector("#photos > ul.row.grid");
+            let nav1;
+            let nav2;
+            let children;
+
+            while (a) {
+                btn.text("正在展开分页...");
+                href = a.href;
+                d = await html(href);
+                d.href = href;
+                a = await this.node2value(d, this.next);
+                nav1 = doc.querySelector("div.footer > ul.pagination");
+                nav2 = d.querySelector("div.footer > ul.pagination");
+                nav1.parentNode.replaceChild(nav2, nav1);
+                children = d.querySelectorAll("div.body > div.card-content > section.photos > ul > li");
+                for (const child of children) {
+                    content.appendChild(child);
+                    log(child);
+                }
+                await delay(10 ** 2 * 5);
+            }
+
+            const resource = await this.parse(doc);
+            const cover = resource.cover;
+            const title = resource.title;
+            if (isValidStr(cover) && isValidStr(title)) {
+                try {
+                    const url = parseURL(cover);
+                    let splits = url.pathname.split("/");
+                    let filename = splits[splits.length - 1];
+                    splits = filename.split(".");
+                    filename = `${title}.${splits[splits.length - 1]}`;
+                    yield new RemoteFile(filename, cover);
+                } catch (err) {
+                    log(err);
+                }
+            }
+            let finds = doc.querySelectorAll("div.body > div.card-content > section.photos > ul > li a");
+            let numText;
+            if (finds.length > 0) {
+                btn.text("Conn.");
+                // noinspection JSUnusedAssignment
+                numText = button(function (txt) {
+                    txt.textContent = "Down";
+                    Object.assign(txt.style, {
+                        position: 'fixed',
+                        right: '15%',
+                        bottom: '25%',
+                        height: '46px',      // 高度保持固定
+                        borderRadius: '23px',
+                        backgroundColor: '#F44949',
+                        border: '1px solid #FFF',
+                        color: '#FFF',
+                        zIndex: '50',
+                        padding: "10px",
+                        // ========== 禁止换行 + 溢出处理 ==========
+                        whiteSpace: 'nowrap',          // 强制文字不换行
+                        overflow: 'hidden',           // 溢出隐藏
+                        textOverflow: 'ellipsis',     // 溢出显示省略号（可选）
+                    });
+                    document.body.appendChild(txt);
+                });
+            }
+            const site = new R18hubPhotos()
+            let child;
+            let generator;
+            let res;
+            let names;
+            finds = Array.from(finds)//.reverse();
+            let img;
+            let alt;
+            let find;
+            let url;
+            let suffix;
+
+            let count = finds.length;
+            let downloaded = 0;
+            let skipped = 0;
+
+            for (let index = 0; index < finds.length; index++) {
+                find = finds[index];
+                url = find.href;
+                try {
+                    if (numText) {
+                        numText.text(`${downloaded}/${skipped}/${count}`);
+                    }
+                    btn.text(`Con.`);
+                    log(url);
+                    child = await html(url);
+                    res = await site.parse(child);
+                    if (numText) {
+                        numText.text(`${downloaded}/${skipped}/${count} ${res.title}`);
+                    }
+                    names = res.actors.map(e => e.name);
+                    if (!names.includes(title)) {
+                        skipped += 1;
+                        log(`${url} ; skiped.`);
+                        continue;
+                    }
+                    img = find.querySelector("img");
+                    alt = img.alt ?? res.title;
+                    img = img.dataset.src + "?a=2";
+                    suffix = url2suffix(img);
+                    yield new RemoteFile(`${alt}.${suffix}`, img);
+                    if (res.actors.length > 1) {
+                        log(`${url} ; skipped.`);
+                        skipped += 1;
+                        continue;
+                    }
+                    generator = site.process(child);
+                    for await (const element of generator) {
+                        yield element;
+                    }
+                    downloaded += 1;
+                    log(`${url} ; downloaded`);
+                } catch (error) {
+                    log(`${url} ; ${error}`);
+                    skipped += 1;
+                }
+            }
+            /*
+            try {
+                if (numText && numText instanceof HTMLElement) {
+                    numText.style.display = 'none';
+                }
+            } catch (error) {
+                log(error);
+            }
+            */
+            if (numText) {
+                numText.text(`${downloaded}/${skipped}/${count}  Done.`);
+            }
+            btn.text(`Done.`);
+        }
+
+    }
+
+    // ---------------------- BabePedia ----------------------
+
+    // noinspection JSUnusedGlobalSymbols
+    class BabePedia extends Site {
+
+        constructor() {
+            super({
+                host: "www.babepedia.com",
+                path: /^\/babe\/.*/i,
+            });
+        }
+
+        title = {
+            node: "h1#babename",
+            property: "innerText",
+        }
+
+        photos = function (doc) {
+            const finds = doc.querySelectorAll("a.img[rel='gallery']");
+            const values = [];
+            for (const find of finds) {
+                let href = find.href;
+                let titles = href.split("/");
+                let title = titles[titles.length - 1];
+                let suffixes = title.split(".");
+                let suffix = suffixes[suffixes.length - 1];
+                // noinspection JSUnresolvedReference
+                const hash = CryptoJS.MD5(title).toString();
+                let name = hash.toUpperCase() + "." + suffix;
+                values.push({name, content: href});
+            }
+            return values;
+        }
+
+        async* process(doc) {
+            const generator = super.process(doc);
+            for await (const element of generator) {
+                if (element instanceof ZipFile) {
+                    const entries = element.entries.filter(e => e.type !== Entity.TEXT);
+                    yield new ZipFile(element.name, entries);
+                } else {
+                    yield element;
+                }
+            }
+        }
+
+    }
+
+    // ---------------------- R18.clickme ----------------------
+
+    // noinspection JSUnusedGlobalSymbols
+    class R18ClickMe extends Site {
+
+        // https://r18.clickme.net/63188
+        constructor() {
+            super({
+                host: "r18.clickme.net",
+                path: /^\/\d+/i,
+            });
+        }
+
+        title = async function (doc) {
+            const find = doc.querySelector("head > meta[property='og:title']");
+            const title = find.content;
+            try {
+                return /^(【?.*】)?(.*)(\s*\|\s*點我一下)?$/i.exec(title)[2];
+            } catch (error) {
+                return title;
+            }
+        }
+
+        photos = {
+            node: "article#article-detail-content img",
+            attribute: [
+                {
+                    key: "src",
+                    name: "content",
+                },
+                {
+                    key: "alt",
+                    name: "name",
+                }
+            ],
+        }
+
+        async* process(doc) {
+            const generator = super.process(doc);
+            for await (const element of generator) {
+                if (element instanceof ZipFile) {
+                    const entries = element.entries.filter(e => e.type !== Entity.TEXT);
+                    yield new ZipFile(element.name, entries);
+                } else {
+                    yield element;
+                }
+            }
+        }
+
+    }
+
+    // ---------------------- Adult.contents.fc2 ----------------------
+
+    // noinspection JSUnusedGlobalSymbols
+    class Fc2Content extends Site {
+
+        // https://adult.contents.fc2.com/article/4532140/
+        constructor() {
+            super({
+                host: "adult.contents.fc2.com",
+                path: /^\/article\/\d+\/$/i,
+            });
+        }
+
+        code = async function (doc) {
+            const pathname = location.pathname;
+            const code = pathname.split("/").findLast(e => e.trim());
+            return `FC2-${code}`;
+        }
+
+        title = "//div[@class='items_article_headerInfo']/h3/text()[last()]"
+
+        cover = async function (doc) {
+            const find = await this.node2value(doc, "div.items_article_MainitemThumb > span > img", "cover");
+            return find.src;
+        }
+
+        photos = async function* (doc) {
+            const finds = await this.node2values(doc, "ul.items_article_SampleImagesArea > li > a", "photos");
+            for await (const find of finds) {
+                yield find.href;
+            }
+        }
+
+        videos = async function* (doc) {
+            const find = await this.node2value(doc, "div.fc2-video-container > video.main-video", "videos");
+            const href = find.src;
+            const url = parseURL(href);
+            const splits = url.pathname.split("/");
+            const name = splits[splits.length - 1];
+            yield {name, content: href};
+        }
+
+        async* process(doc) {
+            const generator = super.process(doc);
+            for await (const element of generator) {
+                if (element instanceof ZipFile) {
+                    const entries = element.entries.filter(e => e.type !== Entity.TEXT);
+                    yield new ZipFile(element.name, entries);
+                } else {
+                    yield element;
+                }
+            }
+        }
+
+    }
+
+    // ---------------------- Fd2ppv ----------------------
+
+    class Fd2ppv extends Site {
+
+        // https://fd2ppv.cc/articles/3080193
+        constructor() {
+            super({
+                host: /fd2ppv\.(cc|net|com)*/i,
+                path: /^\/articles\/\d+$/i,
+            });
+        }
+
+        code = async function (doc) {
+            const find = await this.node2value(doc, "nav.breadcrumbs > span.current", "code");
+            const code = find.innerText;
+            if (code && /^\d+$/.test(code)) {
+                return `FC2-${code}`;
+            } else {
+                return code
+            }
+        }
+
+        title = {
+            node: "div.work-detail-header > div",
+            property: "innerText",
+        }
+
+        actors = {
+            node: "div.artist-info-card> div.artist-details > h3 > a.artistUrl",
+            property: [{key: "innerText", name: "name"}, "href"],
+        }
+
+        photos = [
+            async function (doc) {
+                const finds = await this.node2values(doc, "div.work-image-section div.carousel-slide > img", "photos")
+                let elements = Array.from(finds);
+                if (finds.length > 3) {
+                    elements = elements.slice(1, -1);
+                }
+                // noinspection JSUnresolvedReference
+                elements = elements.map(e => e.dataset.src ?? e.src).distinct(e => e);
+                elements = elements.filter(e => parseURL(e).pathname !== "/upload/error_cover.png")
+                return elements;
+            },
+            async function (doc) {
+                const finds = await this.node2values(doc, "div.work-image-section > div.work-photos > img", "photos")
+                let elements = Array.from(finds);
+                // noinspection JSUnresolvedReference
+                elements = elements.map(e => e.dataset.src ?? e.src).distinct(e => e);
+                elements = elements.filter(e => parseURL(e).pathname !== "/upload/error_cover.png")
+                return elements;
+            }
+        ]
+
+        async filename(doc, resource) {
+            const code = resource.code;
+            if (isValidStr(code)) {
+                const actors = resource.actors;
+                if (actors.length > 1) {
+                    let actor = actors.map(e => e.name).join("、");
+                    return [code, actor].join(" - ");
+                } else {
+                    return code;
+                }
+            }
+            const title = resource.title;
+            if (isValidStr(title)) {
+                return title;
+            }
+            return new Date().toString();
+        }
+
+        async* process(doc) {
+            const resource = await this.parse(doc);
+            const {code, cover, photos} = resource;
+            const values = [];
+            cover && values.push(cover);
+            photos && values.push(...photos);
+            log(code);
+            const filename = await this.filename(doc, resource);
+            const zip = ZipFile.from(resource, filename, doc);
+            if (zip instanceof ZipFile && values.length > 0) {
+                for (let entry of values) {
+                    try {
+                        const [href, _] = ZipFile.destruction(entry);
+                        const result = yield new RemoteFile(filename, href);
+                        if (result) {
+                            break
+                        }
+                    } catch (err) {
+                        log(err);
+                    }
+                }
+            }
+            yield zip
+        }
+
+    }
+
+    class Fd2ppvActor extends PagingSite {
+
+        // https://fd2ppv.cc/actresses/196
+        constructor() {
+            super({
+                host: "fd2ppv.cc",
+                path: /^\/actresses\/\d+$/i,
+            });
+        }
+
+        title = {
+            node: "#main h1 > span.cursor-copy[data-text]",
+            attribute: "data-text",
+        }
+
+        cover = {
+            node: "#main div.artist-avatar-large > img",
+            property: "src"
+        }
+
+        next = {
+            node: "//div[@class='other-works-section']/nav[@class='pagination']/span[contains(@class,'active')]/following-sibling::*[1][self::a and @href]",
+            property: "href"
+        }
+
+        children = "#main div.other-works-grid > div.artist-card"
+
+        navigation = "//div[@class='other-works-section']/nav[@class='pagination']"
+
+        async childCount(doc, resource, index, original) {
+            let item_count = await super.childCount(doc, resource, index, original);
+            if (index === 0) {
+                return item_count * 2 + 1;
+            } else {
+                return item_count * 2;
+            }
+        }
+
+        async* processChildren(doc, resource, index, original) {
+            if (index === 0 && resource.cover && resource.title) {
+                yield new RemoteFile(resource.title, resource.cover);
+            }
+            const finds = await this.node2values(doc, "div.other-works-grid > div> div.artist-content > a", "children");
+            let href;
+            let generator;
+            let site = singleton(Fd2ppv);
+            const convert = async function (value) {
+                let tries = 10;
+                let h5;
+                while (tries > 0) {
+                    try {
+                        h5 = await html(value);
+                        await site.parse(h5);
+                        return site.process(h5);
+                    } catch (err) {
+                        log(err);
+                    } finally {
+                        tries--;
+                    }
+                }
+                return null;
+            }
+            for await (let find of finds) {
+                href = find.href;
+                generator = await convert(href);
+                history.replaceState(null, null, original);
+                yield* generator;
+            }
+        }
+
+    }
+
+    // ---------------------- Fc2db ----------------------
+
+    class Fc2db extends Site {
+
+        // https://fc2db.net/work/4922101/
+        constructor() {
+            super({
+                host: /fc2db\.(cc|net|com)/i,
+                path: /^\/work\/\d+\/$/i,
+            });
+        }
+
+        code = async function (doc) {
+            const url = parseURL(location.href);
+            const splits = url.pathname.split("/").filter(e => e.trim());
+            const code = splits[splits.length - 1];
+            return `FC2-${code}`;
+        }
+
+        cover = {
+            node: "#content > div > div.grid.grid-cols-1.gap-6 > div.bg-card.border > a > img",
+            property: "src",
+        }
+
+        title = {
+            node: "#content > div > div.grid.grid-cols-1 div > h2",
+            property: "innerText",
+        }
+
+        actors = {
+            node: "div.flex.items-center > a.inline-flex.items-center ",
+            property: [{key: "innerText", name: "name"}, "href"],
+        }
+
+        async filename(doc, resource) {
+            const code = resource.code;
+            if (isValidStr(code)) {
+                const actors = resource.actors;
+                if (actors.length > 1) {
+                    let actor = actors.map(e => e.name).join("、");
+                    return [code, actor].join(" - ");
+                } else {
+                    return code;
+                }
+            }
+            const title = resource.title;
+            if (isValidStr(title)) {
+                return title;
+            }
+            return new Date().toString();
+        }
+
+        async* process(doc) {
+            log(resource.code);
+            const resource = await this.parse(doc);
+            const {code, cover, photos} = resource;
+            const values = [];
+            cover && values.push(cover);
+            photos && values.push(...photos);
+            const filename = await this.filename(doc, resource);
+            const zip = ZipFile.from(resource, filename, doc);
+            if (zip instanceof ZipFile && values.length > 0) {
+                for (let entry of values) {
+                    try {
+                        const [href, _] = ZipFile.destruction(entry);
+                        const result = yield new RemoteFile(code ?? filename, href);
+                        if (result) {
+                            break
+                        }
+                    } catch (err) {
+                        log(err);
+                    }
+                }
+            }
+            yield zip;
+        }
+
+    }
+
+    class Fc2dbActor extends PagingSite {
+
+        // https://fd2ppv.cc/actresses/196
+        constructor() {
+            super({
+                host: "fc2db.net",
+                path: /^\/actress\/\d+/i,
+            });
+        }
+
+        title = {
+            node: "#content > div > div.grid > div.shadow-sm.bg-card h1",
+            property: "innerText",
+        }
+
+        cover = {
+            node: "#content > div > div.grid > div.shadow-sm.bg-card img",
+            property: "src"
+        }
+
+        next = {
+            node: "#content div.mt-6 > a.next.page-numbers",
+            property: "href"
+        }
+
+        children = "#content div.grid.gap-4.grid-cols-2 > div"
+
+        navigation = "#content div.mt-6"
+
+        display = false
+
+        /**
+         *
+         * @param {Document} doc
+         * @return {Promise<void>}
+         */
+        photos = async function* (doc) {
+            const finds = doc.querySelectorAll("#content div.grid.grid-cols-2 > div");
+            let href;
+            let code;
+            let title;
+            let suffix;
+            const placeholder = "https://img.fc2db.net/wp-content/uploads/2025/10/05233012/no_image_profile.webp"
+            for (let find of finds) {
+                href = find.querySelector("img.wp-post-image")?.src ?? placeholder;
+                code = find.querySelector("div.p-3 > div:nth-child(1).text-xs.text-text-sub").innerText;
+                title = find.querySelector("div.p-3 > div.text-text-main.h-12").innerText;
+                title = title?.replace("/", "_");
+                suffix = url2suffix(href);
+                yield {
+                    name: `FC2-${code} ${title}.${suffix}`,
+                    content: href,
+                };
+            }
+        }
+
+        /*
+        async* process(doc) {
+            const resource = await this.parse(doc);
+            const {title, code, cover, photos} = resource;
+            const values = [];
+            cover && values.push(cover);
+            photos && values.push(...photos);
+            let find = doc.querySelector("#content  h2.font-serif.text-text-main.mb-3");
+            let text = find.innerText;
+            let num;
+            try {
+                let r = /\d+/.exec(text);
+                num = r[0];
+            } catch (err) {
+                num = -1;
+            }
+            let filename = [num, resource.title].join(" ");
+            let zip = ZipFile.from(resource, filename, doc);
+            yield zip;
+        }
+        */
+        async* process(doc) {
+            // yield* super.process(doc);
+            const generator = super.process(doc);
+            for await (let element of generator) {
+                log(element);
+            }
+            const resource = await this.parse(doc);
+            const {code, cover, photos} = resource;
+            const values = [];
+            cover && values.push(cover);
+            photos && values.push(...photos);
+            let find = doc.querySelector("#content  h2.font-serif.text-text-main.mb-3");
+            let text = find.innerText;
+            let num;
+            try {
+                let r = /\d+/.exec(text);
+                num = r[0];
+            } catch (err) {
+                num = (photos ?? []).length;
+            }
+            let filename = [num, resource.title].join(" ");
+            const zip = ZipFile.from(resource, filename, doc);
+            if (zip instanceof ZipFile && values.length > 0) {
+                for (let entry of values) {
+                    try {
+                        const [href, _] = ZipFile.destruction(entry);
+                        const result = yield new RemoteFile(code ?? filename, href);
+                        if (result) {
+                            break
+                        }
+                    } catch (err) {
+                        log(err);
+                    }
+                }
+            }
+            // yield zip;
+        }
+
+    }
+
+    class Fc2dbActress extends PagingSite {
+
+        // https://fc2db.net/actress/
+        constructor() {
+            super({
+                host: "fc2db.net",
+                path: /^\/(actress|works)\//i,
+            });
+        }
+
+        next = [
+            {
+                node: "#content div.mt-8 > a.next.page-numbers",
+                property: "href"
+            }, {
+                node: "#content div.nav-links > a.next.page-numbers",
+                property: "href"
+            },
+        ]
+
+        children = "main#content div.grid.gap-4.grid-cols-2 > *"
+
+        navigation = [
+            "#content div.mt-8",
+            "#content div.nav-links",
+        ]
+
+        /*
+        async childCount(doc, resource, index, original) {
+            let item_count = await super.childCount(doc, resource, index, original);
+            return item_count * 2;
+        }
+        */
+
+        async* processChild(node, doc, resource, index, original) {
+            // let site = singleton(Fc2dbActor);
+            // const convert = async function (value) {
+            //     let tries = 10;
+            //     let h5;
+            //     while (tries > 0) {
+            //         try {
+            //             h5 = await fetch(value);
+            //             await site.parse(h5);
+            //             return site.process(h5);
+            //         } catch (err) {
+            //             log(err);
+            //         } finally {
+            //             tries--;
+            //         }
+            //     }
+            //     return null;
+            // }
+            // /** @type{HTMLAnchorElement} */
+            // let value = node;
+            // let title = value.querySelector("div.text-text-main").innerText;
+            // let href = value.href;
+            // let generator = await convert(href);
+            // log(title);
+            // yield* generator;
+        }
+
+        async* process(doc) {
+            let generator = super.process(doc);
+            for await (let element of generator) {
+            }
+            // let resource = await this.parse(doc);
+            // log(resource)
+            let children = await this.node2values(doc, this.children, "children");
+
+            let href;
+            let photo;
+            let tag;
+            let code;
+            let title;
+            let actor;
+            let date;
+            let duration;
+            const values = []
+            const placeholder = "https://img.fc2db.net/wp-content/uploads/2025/10/05233012/no_image_profile.webp";
+            for (let child of children) {
+                href = child.querySelector("a").href;
+                photo = child.querySelector("a > div.relative > img")?.src ?? placeholder;
+                tag = child.querySelector("a > div.relative > span")?.innerText;
+                code = child.querySelector("a > div > div.text-xs.text-text-sub").innerText;
+                title = child.querySelector("a > div > div.text-text-main.h-12").innerText;
+                actor = child.querySelector("a > div > div.text-xs.text-text-sub.truncate")?.innerText;
+                date = child.querySelector("a > div > div.items-center.text-text-sub > span:nth-child(1)")?.innerText
+                duration = child.querySelector("a > div > div.items-center.text-text-sub > span:nth-child(2)")?.innerText;
+
+                href = href?.trim() ?? null;
+                photo = photo?.trim() ?? placeholder;
+                tag = tag?.trim() ?? null;
+                code = code?.trim() ?? null;
+                title = title?.trim() ?? null;
+                actor = actor?.trim() ?? null;
+                date = date?.trim() ?? null;
+                duration = duration?.trim() ?? null;
+                values.push({href, photo, tag, code, title, actor, date, duration,});
+            }
+            log(values);
+            const photos = values.map(function (e) {
+                const suffix = url2suffix(e.photo);
+                return Entity.photo(`FC2-${e.code}.${suffix}`, e.photo, doc,);
+            });
+            const entries = [];
+            entries.push(...photos);
+            entries.push(Entity.text("作品一览.json", JSON.stringify(values), doc));
+            yield new ZipFile("作品一览", entries);
+        }
+
+    }
+
+    // ---------------------- AvFhd ----------------------
+
+    class AvFhd extends Site {
+
+        // https://avfhd.com/698456/fc2-ppv-4872123/
+        constructor() {
+            super({
+                host: /avfhd\.(cc|net|com)/i,
+                path: /^\/\d+\/.*\/$/i,
+            });
+        }
+
+        photos = {
+            node: "div.entry-content > p > img",
+            property: "src",
+        }
+
+        code = [async function () {
+            const pathname = location.pathname;
+            let splits = pathname.split("/");
+            let value = splits[splits.length - 1];
+            let result = /fc2-ppv-(\d+)/i.exec(value);
+            if (result && result[1]) {
+                return `FC2-${result[1]}`;
+            } else {
+                return null
+            }
+        }, async function () {
+            const pathname = location.pathname;
+            let splits = pathname.split("/");
+            let value = splits[splits.length - 1];
+            let result = /(\d+)?[a-zA-Z]+[-_]?(\d+)/i.exec(value);
+            if (result && result[0]) {
+                return result[0].toUpperCase();
+            } else {
+                return null
+            }
+        }]
+
+        title = {
+            node: "main#main  header > h1.entry-title",
+            property: "innerText",
         }
 
     }
@@ -974,6 +2137,18 @@
 
     const SITES = Object.assign([
         singleton(JavBus),
+        singleton(MaDou),
+        singleton(R18hubPhotos),
+        singleton(R18hubActor),
+        singleton(BabePedia),
+        singleton(R18ClickMe),
+        singleton(Fc2Content),
+        singleton(Fd2ppv),
+        singleton(Fd2ppvActor),
+        singleton(Fc2db),
+        singleton(Fc2dbActor),
+        singleton(Fc2dbActress),
+        singleton(AvFhd),
     ], {
         match: function (href) {
             href = href || location.href;
@@ -989,28 +2164,10 @@
     if (!site) {
         return;
     }
-    let glass = `button${Math.round(1000 + Math.random() * 8999)}`;
-    let style = `.${glass}{
-           position:fixed;
-            right:10%;
-            bottom:16.5%;
-            width: 55px;
-            height: 55px;
-            border-radius:50%;
-            border: none;
-            background-color: #f44949;
-            border: 1px solid #f44949;
-            color:#fff;
-            z-index:50;
-        }.${glass}:active{
-            background-color: #ca8e9f;
-        }.${glass}:hover{
-            background-color: #ca8e9f;
-        }`;
 
-    async function download_resource(resource, configs) {
-        if (!(resource instanceof Resource)) {
-            return;
+    async function download(value, configs) {
+        if (!(value instanceof Download)) {
+            return null;
         }
         let headers = {                      // 在这里定义请求头
             "Referer": window.location.href,
@@ -1019,21 +2176,42 @@
             "X-Custom-Header": Math.round(1000 + Math.random() * 8999).toString(),
         }
         let {on_start, on_progress, on_success, on_failure} = configs || {};
-        if (resource.entries.length === 1) {
-            let item0 = resource.entries[0];
-            let v1 = item0.name;
-            let v2 = v1.split(".")[1];
-            let file = resource.name + "." + v2;
-            let url = item0.content;
+        if (value instanceof RemoteFile) {
+            const file = value.name;
+            const url = value.href;
             let total = 1;
             let downloaded = 0;
             on_start && on_start(total);
             on_progress && on_progress(downloaded, total);
-            // 一行代码，简单直接
-            GM_download({url: url, name: file, headers: headers});
-            on_success && on_success(total);
-        } else {
-            let {name, entries} = resource;
+            return new Promise(async function (resolve, reject) {
+                // noinspection JSUnresolvedReference,JSUnusedLocalSymbols
+                GM_download({
+                    url: url,
+                    name: file,
+                    headers: headers,
+                    onload: function ({loaded, total, mode}) {
+                        resolve()
+                    },
+                    onerror: function ({id, error, details}) {
+                        reject(error);
+                    },
+                    onprogress: function ({loaded, total}) {
+                    },
+                    ontimeout: function (response) {
+                        reject("超时");
+                    },
+                });
+            }).then(function () {
+                on_success && on_success(total);
+                return true;
+            }).catch(function (reason) {
+                on_failure && on_failure(reason);
+                throw reason;
+            });
+        } else if (value instanceof ZipFile) {
+            /** @type {Map<Entity,Boolean>} */
+            const result = new Map();
+            let {name, entries} = value;
             // noinspection JSUnresolvedFunction
             let zip = new JSZip();
             // noinspection JSUnresolvedFunction
@@ -1041,6 +2219,10 @@
             let downloaded = 0;
             let total = entries.length;
             on_start && on_start(total);
+            /**
+             * @param {Entity} item
+             * @return {Promise<Map<Entity, Boolean>[]>}
+             */
             let func = function (item) {
                 let {type, content, name: file} = item;
                 if (type === Entity.TEXT) {
@@ -1049,41 +2231,55 @@
                     on_progress && on_progress(downloaded, total);
                     // 压入zip中
                     folder.file(file, blob, {binary: true});
+                    result.set(item, true);
                 } else if ((type & Entity.HREF) === Entity.HREF) {
-                    return stream(
-                        content,
-                        {
-                            responseType: "blob",
-                            headers: headers,
+                    return stream(content, 10, {responseType: "blob", headers: headers, timeout: 10 ** 3 * 30})
+                        .then(function (response) {
+                            const {responseText, status} = response;
+                            if (!responseText) {
+                                throw "response 转化 Uint8Array 失败.";
+                            }
+                            if (status < 200 || status >= 300) {
+                                throw `响应码 : ${status}.`;
+                            }
+                            const data = new Uint8Array(responseText.length);
+                            let index = 0;
+                            while (index < responseText.length) {
+                                data[index] = responseText.charCodeAt(index);
+                                index++;
+                            }
+                            return data;
                         })
-                        .response2array()
                         .then(function (data) {
-                            // let blob = new Blob([data], {type: 'image/jpeg'}); // 转为Blob类型
+                            // noinspection JSCheckFunctionSignatures
                             let blob = new Blob([data]); // 转为Blob类型
                             if (blob.size < 2 ** 10) {
+                                log("文件大小有问题 ; " + content);
                                 return
                             }
                             folder.file(file, blob, {binary: true}); // 压入zip中
                         })
                         .then(function () {
+                            log("成功 : " + content,);
                             downloaded++;
                             on_progress && on_progress(downloaded, total);
                         })
                         .then(function () {
-                            return sleep(1000 * 1.5);
+                            result.set(item, true);
                         })
                         .catch(function (reason) {
-                            log(content, " ; ", reason)
+                            log("失败 : " + content, " ; ", reason);
+                            result.set(item, false);
+                        })
+                        .then(async function () {
+                            return result;
                         });
                 }
             }
 
-            await asyncPool(3, entries, func);
+            await asyncPool(entries, func, Math.min(10, entries.length));
 
-            Promise.resolve()
-                .then(function () {
-                    // log(`共下载: ${downloaded}/${num}`)
-                })
+            return Promise.resolve()
                 .then(function () {
                     // noinspection JSUnresolvedFunction
                     return zip.generateAsync({type: "blob", base64: true})
@@ -1099,56 +2295,110 @@
                 .catch(function (reason) {
                     on_failure && on_failure(reason);
                 })
-                // .then(function () {return sleep(10 ** 3 * 10);}).then(function () {window.close();})
                 .finally(function () {
+                })
+                .then(function () {
+                    return result;
                 });
+        } else {
+            return null;
         }
     }
 
-    async function download(doc, site, configs) {
-        let res = await site?.run(doc);
-        log(res);
+    async function downloads(doc, site, configs) {
+        /**
+         * @type {AsyncGenerator<Download,void,Boolean>|Generator<Download,void,Boolean>}
+         */
+        let generator = await site?.run(doc);
+        let element;
+        let value;
+        let done;
+        let previous;
+        do {
+            element = await generator.next(previous);
+            value = element.value;
+            done = element.done;
+            if (value) {
+                try {
+                    log("下载开始 : " + JSON.stringify(value));
+                    await download(value, configs);
+                    previous = true;
+                } catch (err) {
+                    previous = false;
+                    log(err);
+                }
+            }
+        } while (!done)
+        site && await (site?.close());
 
-        // let json = JSON.stringify(res);
-        // log(json);
-        //
-        // let resources;
-        // if (isIterable(res)) {
-        //     resources = Array.from(res);
-        // } else {
-        //     resources = [res];
-        // }
-        // for (const resource of resources) {
-        //     // noinspection JSUnusedGlobalSymbols
-        //     await download_resource(resource, configs);
-        // }
-        // site && await (site?.close());
     }
 
-    // noinspection JSUnresolvedFunction
-    button("Down", async function () {
-        let btn = this;
-        if (!this.enabled()) {
-            alert("下载中,请勿重复点击");
-            return;
-        }
-        // btn.disable();
-        btn.text("Conn.");
-        await download(document, site, {
-            on_start: function (total) {
-                btn.text(`0/${total}`);
-            }, on_progress: function (progress, total) {
-                btn.text(`${progress}/${total}`);
-            }, on_success: function () {
-                btn.text('Done');
-            }, on_failure: function () {
-                btn.text("Fail")
-            },
+    // noinspection JSUnusedAssignment
+    btn = button(function (button) {
+        button.textContent = "Down";
+        button.id = "worm_download"
+        button.class = "Download"
+        Object.assign(button.style, {
+            position: 'fixed',
+            right: '15%',
+            bottom: '15%',
+            height: '46px',      // 高度保持固定
+            // width: "100%",
+            borderRadius: '23px',
+            backgroundColor: '#F44949',
+            border: '1px solid #FFF',
+            color: '#FFF',
+            zIndex: '50',
+            padding: "10px",
+            // ========== 禁止换行 + 溢出处理 ==========
+            whiteSpace: 'nowrap',          // 强制文字不换行
+            overflow: 'hidden',           // 溢出隐藏
+            textOverflow: 'ellipsis',     // 溢出显示省略号（可选）
         });
-        btn.enable();
-    }, style, {
-        "class": glass,
+        button.addEventListener('mouseenter', () => {
+            button.style.backgroundColor = '#CA8E9F';
+        });
+        button.addEventListener('mouseleave', () => {
+            button.style.backgroundColor = '#F44949';
+        });
+        button.addEventListener('mousedown', () => {
+            button.style.backgroundColor = '#CA8E9F';
+        });
+        button.addEventListener('mouseup', () => {
+            button.style.backgroundColor = '#F44949';
+        });
+        button.onclick = async function () {
+            if (!button.enabled()) {
+                alert("下载中,请勿重复点击");
+                return;
+            }
+            button.disable();
+            button.text("Conn.");
+            await downloads(document, site, {
+                on_start: function (total) {
+                    button.text(`0/${total}`);
+                }, on_progress: function (progress, total) {
+                    button.text(`${progress}/${total}`);
+                }, on_success: function () {
+                    button.text('Done');
+                }, on_failure: function () {
+                    button.text("Fail")
+                },
+            });
+            button.enable();
+        };
+        document.body.appendChild(button);
     });
-    // setTimeout(function () {document.querySelector(`button.${glass}`)?.click();}, 10 ** 3 * 3);
 
 })();
+
+// https://fc2db.net/work/4922101/
+// https://fc2db.net/works/page/1900/
+// https://fc2db.net/works/page/2800/
+// https://fc2db.net/work/3104337/
+// https://fc2db.net/work/4633957/
+// https://avfhd.com/698456/fc2-ppv-4872123/
+// https://avfhd.com/599396/fc2-ppv-4742721/
+// https://fc2db.net/work/4723295/
+// https://fc2db.net/work/4511406/
+// https://fc2db.net/work/4595393/
