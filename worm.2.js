@@ -997,12 +997,27 @@
                 if (!href) {
                     break
                 }
+                let interrupt = await this.interrupt(href, current, doc)
+                if (interrupt) {
+                    break
+                }
                 current = await next2document(href);
                 current && (current.href = href);
                 href && history.replaceState(null, null, href);
                 index++;
             } while (current && navigation);
             renderCursor("Done");
+        }
+
+        /**
+         * 是否中断
+         * @param {String} value 下一页的连接
+         * @param {Document} current 当前页
+         * @param {Document} origin 原始页
+         * @returns {Promise<boolean>}
+         */
+        async interrupt(value, current, origin) {
+            return false;
         }
 
     }
@@ -2083,6 +2098,13 @@
             entries.push(...photos);
             entries.push(Entity.text("作品一览.json", JSON.stringify(values), doc));
             yield new ZipFile("作品一览", entries);
+        }
+
+        async interrupt(value, current, origin) {
+            let url = parseURL(value);
+            let splits = url.pathname.split("/").filter(e => e);
+            let num = splits[splits.length - 1];
+            return num % 1000 === 0;
         }
 
     }
