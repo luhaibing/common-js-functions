@@ -1255,13 +1255,14 @@ class NodeQuery extends Processor {
      * @param {Document} doc 页面文档
      * @param {*} node 节点的值
      * @param {string|null} name 节点的名
+     * @param {URL} url 页面链接
      * @param {string|null} attribute 属性
      * @param {string|null} property 属性
      * @param {number|null} start 开始
      * @param {number|null} end   结尾
      * @returns {AsyncGenerator<*, void, void>}
      */
-    async* queryNode({doc, node, name, attribute, property, start, end}) {
+    async* queryNode({doc, node, name, url, attribute, property, start, end}) {
         const convert = function (target, names = null) {
             if (!target) {
                 return null;
@@ -1303,10 +1304,10 @@ class NodeQuery extends Processor {
             const valueFormat = function (value, format) {
                 if (format instanceof RegExp && format.test(value)) {
                     let execArray = format.exec(value);
-                    return execArray[1] ?? execArray[0];
+                    return execArray[0];
                 }
-                if (typeof format === "function") {
-                    return format(value)
+                if (isFunction(format)) {
+                    return format.call(this, value, doc, url, name);
                 }
                 return value;
             }
@@ -1326,15 +1327,15 @@ class NodeQuery extends Processor {
                 }
             } else {
                 const obj = {};
-                for (const {key, name, format} of attributes) {
+                for (const {key, name, covert} of attributes) {
                     const n = name || key;
                     const value = node.getAttribute(key);
-                    obj[n] = valueFormat.call(this, value, format);
+                    obj[n] = valueFormat.call(this, value, covert);
                 }
-                for (const {key, name, format} of properties) {
+                for (const {key, name, covert} of properties) {
                     const n = name || key;
                     const value = node[key];
-                    obj[n] = valueFormat.call(this, value, format);
+                    obj[n] = valueFormat.call(this, value, covert);
                 }
                 return obj;
             }
