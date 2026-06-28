@@ -51,14 +51,18 @@
         name;
         /** @type {string|null} 内容 */
         content;
+        /** @type {Map<String,*>|null} 下载时请求头 */
+        headers;
 
         /**
          *
          * @param {string} name
          * @param {string} content
          * @param {number} type
+         * @param {Map<String,*>|null} headers
+         * @param {Document} doc
          */
-        constructor(name, content, type) {
+        constructor(name, content, type, headers, {doc}) {
             if (!isValidStr(name)) {
                 throw "name must be a valid string.";
             }
@@ -76,6 +80,24 @@
             this.name = name.trim();
             this.content = content.trim();
             this.type = type;
+            if (!headers && doc) {
+                // noinspection JSUnresolvedReference
+                let href = doc.URL ?? doc.href;
+                if (href) {
+                    try {
+                        const url = parseURL(href);
+                        headers = {
+                            "Referer": url.href,
+                            "Origin": url.origin,
+                            "User-Agent": navigator.userAgent,
+                            "X-Custom-Header": Math.round(1000 + Math.random() * 8999).toString(),
+                        }
+                    } catch (err) {
+                        log(err);
+                    }
+                }
+            }
+            this.headers = headers;
         }
 
         /**
@@ -86,9 +108,10 @@
          * @param {String|null} default_suffix
          * @param {Number} type
          * @param {Document} doc
+         * @param {Map<String,*>|null} headers
          * @returns {Entity|null}
          */
-        static href(name, href, pattern, default_suffix, type = Entity.HREF, {doc}) {
+        static href(name, href, pattern, default_suffix, type = Entity.HREF, headers, {doc}) {
             if (!name) {
                 if (!pattern || !default_suffix) {
                     throw "pattern and default_suffix can not be blank.";
@@ -107,7 +130,7 @@
                 log("href error.");
                 return null;
             }
-            return new Entity(name, href, type ?? Entity.HREF);
+            return new Entity(name, href, type ?? Entity.HREF, headers, {doc: doc});
         }
 
         /**
@@ -115,10 +138,11 @@
          * @param {String} name
          * @param {String} href
          * @param {Document} doc
+         * @param {Map<String,*>|null} headers
          * @returns {Entity}
          */
-        static cover(name, href, doc) {
-            return Entity.href(name, href, null, null, Entity.COVER, {doc: doc});
+        static cover(name, href, doc, headers) {
+            return Entity.href(name, href, null, null, Entity.COVER, headers, {doc: doc});
         }
 
         /**
@@ -126,9 +150,10 @@
          * @param {String} name
          * @param {String} href
          * @param {Document} doc
+         * @param {Map<String,*>|null} headers
          * @returns {Entity}
          */
-        static photo(name, href, doc) {
+        static photo(name, href, doc, headers) {
             if (href.startsWith("//")) {
                 let protocol;
                 try {
@@ -141,7 +166,7 @@
                 let base_Url = doc.baseURI;
                 href = `${base_Url.slice(0, -1)}${href}`;
             }
-            return Entity.href(name, href, Entity.P, "jpg", Entity.PHOTO, {doc: doc});
+            return Entity.href(name, href, Entity.P, "jpg", Entity.PHOTO, headers, {doc: doc});
         }
 
         /**
@@ -149,9 +174,10 @@
          * @param {String} name
          * @param {String} href
          * @param {Document} doc
+         * @param {Map<String,*>|null} headers
          * @returns {Entity}
          */
-        static video(name, href, doc) {
+        static video(name, href, doc, headers) {
             if (href.startsWith("//")) {
                 let protocol;
                 try {
@@ -164,7 +190,7 @@
                 let base_Url = doc.baseURI;
                 href = `${base_Url.slice(0, -1)}${href}`;
             }
-            return Entity.href(name, href, Entity.V, "mp4", Entity.VIDEO, {doc: doc});
+            return Entity.href(name, href, Entity.V, "mp4", Entity.VIDEO, headers, {doc: doc});
         }
 
         /**
@@ -172,9 +198,10 @@
          * @param {String} name
          * @param {String} href
          * @param {Document} doc
+         * @param {Map<String,*>|null} headers
          * @returns {Entity}
          */
-        static file(name, href, doc) {
+        static file(name, href, doc, headers) {
             if (href.startsWith("//")) {
                 let protocol;
                 try {
@@ -187,7 +214,7 @@
                 let base_Url = doc.baseURI;
                 href = `${base_Url.slice(0, -1)}${href}`;
             }
-            return Entity.href(name, href, null, null, Entity.FILE, {doc: doc});
+            return Entity.href(name, href, null, null, Entity.FILE, headers, {doc: doc});
         }
 
         /**
@@ -198,7 +225,7 @@
          * @returns {Entity}
          */
         static text(name, content, {doc}) {
-            return new Entity(name, content, Entity.TEXT);
+            return new Entity(name, content, Entity.TEXT, null, {doc});
         }
     }
 
@@ -353,13 +380,31 @@
     class RemoteFile extends Download {
         /** @type {string} 文件链接 */
         href;
+        headers;
 
-        constructor(name, href) {
+        constructor(name, href, headers = null, {doc}) {
             super(name);
             if (!isValidStr(href)) {
                 throw "href must be a valid string.";
             }
             this.href = href.trim();
+            if (!headers && doc) {
+                let href = doc.URL ?? doc.href;
+                if (href) {
+                    try {
+                        const url = parseURL(href);
+                        headers = {                      // 在这里定义请求头
+                            "Referer": url.href,
+                            "Origin": winurl.origin,
+                            "User-Agent": navigator.userAgent,
+                            "X-Custom-Header": Math.round(1000 + Math.random() * 8999).toString(),
+                        }
+                    } catch (err) {
+                        log(err);
+                    }
+                }
+            }
+            this.headers = headers;
         }
     }
 
@@ -444,9 +489,9 @@
                         } else {
                             const filename = splits[splits.length - 1];
                             if (filename.endsWith(suffix)) {
-                                name = filename
+                                name = filename;
                             } else {
-                                name = filename + "." + suffix
+                                name = filename + "." + suffix;
                             }
                         }
                         // noinspection JSCheckFunctionSignatures
@@ -547,6 +592,8 @@
                     filename = filename.substring(Entity.MAX_LENGTH - diff) + actor;
                 }
             }
+            filename = filename.replace("/", ",");
+            entries.push(Entity.text(`${filename}.json`, resource.json(), {doc}));
             return new ZipFile(filename, entries);
         }
 
@@ -621,22 +668,23 @@
          * @returns {Promise<Resource>}
          */
         async parse(doc) {
-            const href = doc.URL;
+            // noinspection JSUnresolvedReference
+            const href = doc.URL ?? doc.href;
 
-            const code = await this.parse_code(doc);
-            const title = await this.parse_title(doc);
-            const subtitle = await this.parse_subtitle(doc);
-            const desc = await this.parse_desc(doc);
-            const date = await this.parse_date(doc);
-            const actors = await this.parse_actors(doc);
-            const categories = await this.parse_categories(doc);
-            const tags = await this.parse_tags(doc);
+            const code = await this.parseCode(doc);
+            const title = await this.parseTitle(doc);
+            const subtitle = await this.parseSubtitle(doc);
+            const desc = await this.parseDesc(doc);
+            const date = await this.parseDate(doc);
+            const actors = await this.parseActors(doc);
+            const categories = await this.parseCategories(doc);
+            const tags = await this.parseTags(doc);
 
-            const cover = await this.parse_cover(doc);
-            const photos = await this.parse_photos(doc);
-            const videos = await this.parse_videos(doc);
-            const manages = await this.parse_manages(doc);
-            const attachments = await this.parse_attachments(doc);
+            const cover = await this.parseCover(doc);
+            const photos = await this.parsePhotos(doc);
+            const videos = await this.parseVideos(doc);
+            const manages = await this.parseManages(doc);
+            const attachments = await this.parseAttachments(doc);
             return Resource.from({
                 href: href,
 
@@ -662,7 +710,7 @@
          * @param {Document} doc 页面文档
          * @returns {Promise<*|null>} 标题
          */
-        async parse_title(doc) {
+        async parseTitle(doc) {
             let {title} = this;
             return await this.node2value(doc, title);
         }
@@ -672,7 +720,7 @@
          * @param {Document} doc 页面文档
          * @returns {Promise<*|null>} 番号
          */
-        async parse_code(doc) {
+        async parseCode(doc) {
             let {code} = this;
             return await this.node2value(doc, code);
         }
@@ -682,7 +730,7 @@
          * @param {Document} doc 页面文档
          * @returns {Promise<*|null>} 副标题
          */
-        async parse_subtitle(doc) {
+        async parseSubtitle(doc) {
             let {subtitle} = this;
             return await this.node2value(doc, subtitle);
         }
@@ -692,7 +740,7 @@
          * @param {Document} doc 页面文档
          * @returns {Promise<*|null>} 描述
          */
-        async parse_desc(doc) {
+        async parseDesc(doc) {
             let {desc} = this;
             return await this.node2value(doc, desc);
         }
@@ -702,7 +750,7 @@
          * @param {Document} doc 页面文档
          * @returns {Promise<*|null>} 日期
          */
-        async parse_date(doc) {
+        async parseDate(doc) {
             let {date} = this;
             return await this.node2value(doc, date);
         }
@@ -712,7 +760,7 @@
          * @param {Document} doc 页面文档
          * @returns {Promise<*|null>} 作者
          */
-        async parse_actors(doc) {
+        async parseActors(doc) {
             let {actors} = this;
             return await this.node2values(doc, actors);
         }
@@ -722,7 +770,7 @@
          * @param {Document} doc 页面文档
          * @returns {Promise<*|null>} 种类
          */
-        async parse_categories(doc) {
+        async parseCategories(doc) {
             let {categories} = this;
             return await this.node2values(doc, categories);
         }
@@ -732,7 +780,7 @@
          * @param {Document} doc 页面文档
          * @returns {Promise<*|null>} 标签
          */
-        async parse_tags(doc) {
+        async parseTags(doc) {
             let {tags} = this;
             return await this.node2values(doc, tags);
         }
@@ -742,7 +790,7 @@
          * @param {Document} doc 页面文档
          * @returns {Promise<*|null>} 封面
          */
-        async parse_cover(doc) {
+        async parseCover(doc) {
             let {cover} = this;
             return await this.node2value(doc, cover);
         }
@@ -752,7 +800,7 @@
          * @param {Document} doc 页面文档
          * @returns {Promise<*|null>} 图片
          */
-        async parse_photos(doc) {
+        async parsePhotos(doc) {
             let {photos} = this;
             return await this.node2values(doc, photos);
         }
@@ -762,7 +810,7 @@
          * @param {Document} doc 页面文档
          * @returns {Promise<*|null>} 视频
          */
-        async parse_videos(doc) {
+        async parseVideos(doc) {
             let {videos} = this;
             return await this.node2values(doc, videos);
         }
@@ -772,7 +820,7 @@
          * @param {Document} doc 页面文档
          * @returns {Promise<*|null>} 磁力链接
          */
-        async parse_manages(doc) {
+        async parseManages(doc) {
             let {manages} = this;
             return await this.node2values(doc, manages);
         }
@@ -782,9 +830,19 @@
          * @param {Document} doc 页面文档
          * @returns {Promise<*|null>} 附件
          */
-        async parse_attachments(doc) {
+        async parseAttachments(doc) {
             let {attachments} = this;
             return await this.node2values(doc, attachments);
+        }
+
+        /**
+         * 搜索
+         * @generator
+         * @param {String} value
+         * @param {Document} doc - 页面文档
+         * @returns {AsyncGenerator<Resource, void, *>}
+         */
+        async* search(value, doc) {
         }
 
     }
@@ -1022,6 +1080,49 @@
 
     }
 
+    // ---------------------- FC2搜索 ----------------------
+
+    class Fc2Finder extends Site {
+
+    }
+
+    class Fc2Search {
+
+        /**
+         * @generator
+         * @param value
+         * @param site
+         * @param doc
+         * @return {AsyncGenerator<Resource|null, void, *>}
+         * @return {AsyncGenerator<Resource, void, *>}
+         */
+        static async* search(value, site, doc) {
+            let result = /fc2([ _-]?[a-z]+)?[ _-](\d+)/i.exec(value);
+            if (result && result[2]) {
+                value = result[2];
+            }
+            /** @type {Site[]}*/
+            const finders = [
+                // TODO:
+                // singleton(JavPopMov),
+                // singleton(Fd2ppv),
+                singleton(JavIp),
+                singleton(PornAv),
+            ]
+            for (const finder of finders) {
+                if (finder === site) {
+                    continue
+                }
+                try {
+                    yield* finder.search(value, doc);
+                } catch (err) {
+                    log(err);
+                }
+            }
+        }
+
+    }
+
     // ----------------------------------------------------------------
 
     // ---------------------- JavBus ----------------------
@@ -1124,7 +1225,7 @@
                     return entry.type === Entity.COVER
                 });
                 if (find) {
-                    yield new RemoteFile(find.name, find.content)
+                    yield new RemoteFile(find.name, find.content, null, {doc})
                 }
             }
             yield zip
@@ -1211,7 +1312,7 @@
                     return entry.type === Entity.COVER
                 });
                 if (find) {
-                    yield new RemoteFile(find.name, find.content)
+                    yield new RemoteFile(find.name, find.content, null, {doc})
                 }
             }
             yield zip
@@ -1363,7 +1464,7 @@
                     let filename = splits[splits.length - 1];
                     splits = filename.split(".");
                     filename = `${title}.${splits[splits.length - 1]}`;
-                    yield new RemoteFile(filename, cover);
+                    yield new RemoteFile(filename, cover, null, {doc});
                 } catch (err) {
                     log(err);
                 }
@@ -1434,7 +1535,7 @@
                     alt = img.alt ?? res.title;
                     img = img.dataset.src + "?a=2";
                     suffix = url2suffix(img);
-                    yield new RemoteFile(`${alt}.${suffix}`, img);
+                    yield new RemoteFile(`${alt}.${suffix}`, img, null, {doc});
                     if (res.actors.length > 1) {
                         log(`${url} ; skipped.`);
                         skipped += 1;
@@ -1698,17 +1799,26 @@
         async* process(doc) {
             const resource = await this.parse(doc);
             const {code, cover, photos} = resource;
+            log(code);
+            const entries = [];
             const values = [];
             cover && values.push(cover);
             photos && values.push(...photos);
-            log(code);
+            photos && entries.push(...photos);
+            let generator = Fc2Search.search(resource.code, this, doc);
+            for await (const element of generator) {
+                const {cover, photos} = element;
+                cover && entries.push(cover);
+                photos && entries.push(...photos);
+            }
             const filename = await this.filename(doc, resource);
+            resource.photos = entries;
             const zip = ZipFile.from(resource, filename, doc);
             if (zip instanceof ZipFile && values.length > 0) {
                 for (let entry of values) {
                     try {
                         const [href, _] = ZipFile.destruction(entry);
-                        const result = yield new RemoteFile(filename, href);
+                        const result = yield new RemoteFile(code ?? filename, href, null, {doc});
                         if (result) {
                             break
                         }
@@ -1717,7 +1827,7 @@
                     }
                 }
             }
-            yield zip
+            yield zip;
         }
 
     }
@@ -1762,7 +1872,7 @@
 
         async* processChildren(doc, resource, index, original) {
             if (index === 0 && resource.cover && resource.title) {
-                yield new RemoteFile(resource.title, resource.cover);
+                yield new RemoteFile(resource.title, resource.cover, null, {doc});
             }
             const finds = await this.node2values(doc, "div.other-works-grid > div> div.artist-content > a", "children");
             let href;
@@ -1859,7 +1969,7 @@
                 for (let entry of values) {
                     try {
                         const [href, _] = ZipFile.destruction(entry);
-                        const result = yield new RemoteFile(code ?? filename, href);
+                        const result = yield new RemoteFile(code ?? filename, href, null, {doc});
                         if (result) {
                             break
                         }
@@ -1976,7 +2086,7 @@
                 for (let entry of values) {
                     try {
                         const [href, _] = ZipFile.destruction(entry);
-                        const result = yield new RemoteFile(code ?? filename, href);
+                        const result = yield new RemoteFile(code ?? filename, href, null, {doc});
                         if (result) {
                             break
                         }
@@ -2025,40 +2135,39 @@
         */
 
         async* processChild(node, doc, resource, index, original) {
-            // let site = singleton(Fc2dbActor);
-            // const convert = async function (value) {
-            //     let tries = 10;
-            //     let h5;
-            //     while (tries > 0) {
-            //         try {
-            //             h5 = await fetch(value);
-            //             await site.parse(h5);
-            //             return site.process(h5);
-            //         } catch (err) {
-            //             log(err);
-            //         } finally {
-            //             tries--;
-            //         }
-            //     }
-            //     return null;
-            // }
-            // /** @type{HTMLAnchorElement} */
-            // let value = node;
-            // let title = value.querySelector("div.text-text-main").innerText;
-            // let href = value.href;
-            // let generator = await convert(href);
-            // log(title);
-            // yield* generator;
+            /*
+            let site = singleton(Fc2dbActor);
+            const convert = async function (value) {
+                let tries = 10;
+                let h5;
+                while (tries > 0) {
+                    try {
+                        h5 = await fetch(value);
+                        await site.parse(h5);
+                        return site.process(h5);
+                    } catch (err) {
+                        log(err);
+                    } finally {
+                        tries--;
+                    }
+                }
+                return null;
+            }
+            /!** @type{HTMLAnchorElement} *!/
+            let value = node;
+            let title = value.querySelector("div.text-text-main").innerText;
+            let href = value.href;
+            let generator = await convert(href);
+            log(title);
+            yield* generator;
+            */
         }
 
         async* process(doc) {
             let generator = super.process(doc);
             for await (let element of generator) {
             }
-            // let resource = await this.parse(doc);
-            // log(resource)
             let children = await this.node2values(doc, this.children, "children");
-
             let href;
             let photo;
             let tag;
@@ -2155,6 +2264,282 @@
 
     }
 
+    // ---------------------- JavPopMov ----------------------
+    class JavPopMov extends Site {
+
+        // https://javpop.mov/zh-hans/fc2-ppvppv-4595393/
+        // https://javpop.mov/zh-hans/fc2-ppv-ppv-4600349/
+        // https://javpop.mov/zh-hans/_chinasub_fc2ppv-456/
+        constructor() {
+            super({
+                host: "javpop.mov",
+                path: /.*fc2.*/i,
+            });
+        }
+
+        title = {
+            node: "p#breadcrumbs > strong",
+            property: "innerText",
+        }
+
+        code = async function (doc) {
+            // noinspection JSPotentiallyInvalidUsageOfClassThis
+            const text = await this.node2value(doc, this.title, "title");
+            let result = /fc2[-_a-zA-Z\s]+(\d{6,})/i.exec(text);
+            if (result && result[1]) {
+                return `FC2-${result[1]}`;
+            } else {
+                return null;
+            }
+        }
+
+        photos = [
+            {
+                node: "div#futured_images a > img",
+                property: "src",
+            },
+            {
+                node: "div#thumnail_images a > img",
+                property: "src",
+            },
+        ]
+
+        async* search(value, doc) {
+            let h = `https://javpop.mov/zh-hans/search/?s=${value}`;
+            log(`搜索 : ${h}`);
+            /**
+             * @type {Document}
+             */
+            let h5 = await fetch(h);
+            const finds = h5.querySelectorAll("div.post-content > a");
+            let title;
+            let href;
+            let d;
+            let r;
+            for (const find of finds) {
+                title = find.querySelector("h3.post-title").innerText;
+                if (title.includes(value)) {
+                    href = find.href;
+                    try {
+                        d = await fetch(href);
+                        if (!d) {
+                            continue
+                        }
+                        d.href = href;
+                        r = await this.parse(d);
+                        if (!r) {
+                            continue
+                        }
+                        yield r;
+                    } catch (err) {
+                        log(err);
+                    }
+                }
+            }
+        }
+
+    }
+
+    // ---------------------- JavIp ----------------------
+    class JavIp extends Site {
+
+        // https://javip.net/fc2-ppv-4927999/#more-721708
+        constructor() {
+            super({
+                host: "javip.net",
+                path: /.*fc2.*/i,
+            });
+        }
+
+        title = {
+            node: "div#content > div.post > h2.title",
+            property: "innerText",
+        }
+
+        code = async function (doc) {
+            const text = await this.parseTitle(doc);
+            let result = /fc2[-_a-zA-Z\s]+(\d{6,})/i.exec(text);
+            if (result && result[1]) {
+                return `FC2-${result[1]}`;
+            } else {
+                return null;
+            }
+        }
+
+        cover = {
+            node: "div.post > div.entry > p:nth-child(2) > img",
+            property: "src",
+        }
+
+        photos = async function* (doc) {
+            const finds = doc.querySelectorAll(".post > div.entry > p:nth-child(4) > a > img");
+            let photo;
+            let name;
+            for (const find of finds) {
+                try {
+                    photo = find.src;
+                    name = find.alt;
+                    photo = photo.replace(".th.", ".");
+                    yield {
+                        name: name,
+                        content: photo,
+                    }
+                } catch (err) {
+                    log(err);
+                }
+            }
+        }
+
+        async* search(value, doc) {
+            let h = `https://javip.net/?s=${value}`
+            log(`搜索 : ${h}`);
+            /**
+             * @type {Document}
+             */
+            let h5 = await fetch(h);
+            const finds = h5.querySelectorAll("div#content > div.post");
+            let title;
+            let href;
+            let d;
+            let r;
+            for (const find of finds) {
+                title = find.querySelector("h2.title").innerText;
+                if (title.includes(value)) {
+                    href = find.querySelector("h2.title > a").href;
+                    try {
+                        d = await fetch(href);
+                        if (!d) {
+                            continue
+                        }
+                        d.href = href;
+                        r = await this.parse(d);
+                        if (!r) {
+                            continue
+                        }
+                        yield r;
+                    } catch (err) {
+                        log(err);
+                    }
+                }
+            }
+        }
+
+    }
+
+    // ---------------------- PornAv ----------------------
+    class PornAv extends Site {
+
+        // https://pornav.co/jp/article-384948/FC2-PPV-4924836-Full-Face-Revealed-Uncensored-The-once-in-a-thousand-years-genuine-angel-idol-orgasms-a-lot-falls-into-a-dick-and-private-sex
+        constructor() {
+            super({
+                host: "pornav.co",
+                path: /.*fc2.*/i,
+            });
+        }
+
+        title = {
+            node: "div.container > h1.pull-left",
+            property: "innerText",
+        }
+
+        code = async function (doc) {
+            const text = await this.parseTitle(doc);
+            let result = /fc2[-_a-zA-Z\s]+(\d{6,})/i.exec(text);
+            if (result && result[1]) {
+                return `FC2-${result[1]}`;
+            } else {
+                return null;
+            }
+        }
+
+        cover = {
+            node: "div > img.img-responsive[itemprop='image']",
+            property: "src",
+        }
+
+        photos = {
+            node: "div.preview-images img.preview-image",
+            attribute: "data-original",
+        }
+
+        async* search(value, doc) {
+            let h = `https://pornav.co/jp/search?q=${4923443}`
+            log(`搜索 : ${h}`);
+            /**
+             * @type {Document}
+             */
+            let h5 = await fetch(h);
+            const finds = h5.querySelectorAll("#grid-container > ul > li.cbp-item");
+            let title;
+            let href;
+            let d;
+            let r;
+            for (const find of finds) {
+                title = find.querySelector("h3 a[itemprop='url']").innerText;
+                if (title.includes(value)) {
+                    href = find.querySelector("h3 a[itemprop='url']").href;
+                    try {
+                        d = await fetch(href);
+                        if (!d) {
+                            continue
+                        }
+                        d.href = href;
+                        r = await this.parse(d);
+                        if (!r) {
+                            continue
+                        }
+                        yield r;
+                    } catch (err) {
+                        log(err);
+                    }
+                }
+            }
+        }
+
+    }
+
+    // ---------------------- AvFhd ----------------------
+    // http://javpop.com/2025/01/05/fc2_ppv-4595393.html
+
+    // https://maddawgjav.net/fc2-ppv-4927098-%e3%80%90%e5%80%8b%e4%ba%ba%e6%92%ae%e5%bd%b1%e3%80%91%e5%88%9d%e6%92%ae%e3%82%8a%e4%ba%ba%e5%a6%bb%e3%83%89%e3%82%ad%e3%83%a5%e3%83%a1%e3%83%b3%e3%83%88-vol-23-%e6%91%a9%e8%80%b6/
+
+    // ---------------------- AvFhd ----------------------
+
+    class TkTube8Fc2 extends Site {
+
+        // https://tk-tube8.com/nakadashi/12338/
+        constructor() {
+            super({
+                host: "tk-tube8.com",
+                path: /^\/[a-zA-Z]+\/\d+/i,
+            });
+        }
+
+        async* process(doc) {
+            let finds = doc.querySelectorAll("div.post_content > div.product-item img");
+            if (finds.length === 0) {
+                finds = doc.querySelectorAll("main#main_content div.post_content > p > img");
+            }
+            let photo;
+            let name;
+            let suffix;
+            let result;
+            for (const find of finds) {
+                try {
+                    photo = find.dataset.src;
+                    suffix = url2suffix(photo);
+                    name = find.alt;
+                    result = /fc2[ _-]?ppv[ _-]?(\d{5,})/i.exec(name);
+                    name = result[1];
+                    yield new RemoteFile(`FC2-${name}`, photo, null, {doc});
+                } catch (err) {
+                    log(err);
+                }
+            }
+        }
+
+    }
+
     // ----------------------------------------------------------------
 
     const SITES = Object.assign([
@@ -2171,6 +2556,10 @@
         singleton(Fc2dbActor),
         singleton(Fc2dbActress),
         singleton(AvFhd),
+        singleton(JavPopMov),
+        singleton(JavIp),
+        singleton(PornAv),
+        singleton(TkTube8Fc2),
     ], {
         match: function (href) {
             href = href || location.href;
@@ -2191,7 +2580,7 @@
         if (!(value instanceof Download)) {
             return null;
         }
-        let headers = {                      // 在这里定义请求头
+        let defaultHeaders = {                      // 在这里定义请求头
             "Referer": window.location.href,
             "Origin": window.location.origin,
             "User-Agent": navigator.userAgent,
@@ -2201,6 +2590,7 @@
         if (value instanceof RemoteFile) {
             const file = value.name;
             const url = value.href;
+            const headers = value.headers ?? defaultHeaders;
             let total = 1;
             let downloaded = 0;
             on_start && on_start(total);
@@ -2246,7 +2636,7 @@
              * @return {Promise<Map<Entity, Boolean>[]>}
              */
             let func = function (item) {
-                let {type, content, name: file} = item;
+                let {type, content, name: file, headers} = item;
                 if (type === Entity.TEXT) {
                     const blob = new Blob([content], {type: "text/plain"});
                     downloaded++;
@@ -2255,6 +2645,7 @@
                     folder.file(file, blob, {binary: true});
                     result.set(item, true);
                 } else if ((type & Entity.HREF) === Entity.HREF) {
+                    headers = headers ?? defaultHeaders;
                     return stream(content, 10, {responseType: "blob", headers: headers, timeout: 10 ** 3 * 30})
                         .then(function (response) {
                             const {responseText, status} = response;
@@ -2352,7 +2743,6 @@
             }
         } while (!done)
         site && await (site?.close());
-
     }
 
     // noinspection JSUnusedAssignment
@@ -2413,6 +2803,45 @@
     });
 
 })();
+
+// https://hjsv.com/toujyounatsu-fc2-deliveryhealth-matome/
+// https://number-searcher.com/4564617/
+// https://erokaeru.jp/toujou-natu/
+// https://erodouga-beam.com/toujyounatsu-usukeshi-mosaic-matome/
+// https://paipancon.com/fc2daily/detail/FC2-PPV-2216118
+// https://paipancon.com/fc2daily/detail/FC2-PPV-4742218
+// https://paipancon.com/fc2daily/detail/FC2-PPV-4723295
+// https://paipancon.com/fc2daily/detail/FC2-PPV-3868412
+// https://paipancon.com/fc2daily/detail/FC2-PPV-2763672
+// http://javpop.com/2026/06/27/fc2_ppv-4927949.html
+// http://javpop.com/2025/01/05/fc2_ppv-4595393.html
+// http://javpop.com/2026/06/27/maan-1178.html
+// https://javpop.mov/zh-hans/_chinasub_fc2ppv-456/
+// https://javpop.mov/zh-hans/fc2-ppv-ppv-4600349/
+// https://javpop.mov/zh-hans/fc2-ppvppv-4595393/
+// https://glamoroustube.com/archives/1184391
+// https://ffjav.com/torrent/fc2ppv4926632-fc2-ppv-4926632-%e3%80%90%e7%b4%a0%e4%ba%ba%e5%87%ba%e6%bc%94%e3%80%91%e6%96%b0%e5%8d%92%e7%be%8e%e4%ba%ba%e5%b7%a8%e4%b9%b3%e4%bf%9d%e8%82%b2%e5%a3%ab-%e6%bf%83
+// https://javxspot.com/fc2-ppv-4927068/
+// https://netflav5.com/video?id=I88vBEqgd9
+// https://hdblog.me/952488/fc2-2995459/
+// https://7mmtv.sx/zh/uncensored_content/36857/fc2-ppv-2882940.html
+// https://javfree.me/442375/fc2-ppv-4909862
+// https://javfree.me/308458/star-362
+// https://javarchive.com/1150543-FC2-PPV-4929169-%E3%80%90%E3%83%BB%E5%88%9D%E6%92%AE%E3%82%8A%E2%99%A1%E3%80%91-0424_001-%E3%82%89%E3%82%93%E3%81%A1%E3%82%83%E3%82%9325%E6%AD%B3-G%E3%82%AB%E3%83%83%E3%83%97%E3%81%AE%E3%83%AD%E3%82%B1%E3%83%83%E3%83%88%E3%81%8A%E3%81%A3%E3%81%B1%E3%81%84%EF%BC%8B-pn.html
+// https://javarchive.com/1150541-FC2-PPV-4923443-%E3%81%8A%E4%BA%92%E3%81%84%E3%81%AE%E3%82%AB%E3%83%A9%E3%83%80%E3%82%92%E7%9F%A5%E3%82%8A%E5%B0%BD%E3%81%8F%E3%81%97%E3%81%9F%E6%BF%80%E3%82%A8%E3%83%AD%E7%BE%8E%E4%BA%BA%E3%82%BB%E3%83%95%E3%83%AC%E3%81%A8%E7%B5%90%E5%A9%9A%E5%89%8D%E3%81%AE%E3%80%8C%E3%82%84%E3%82%8A%E7%B4%8D%E3%82%81%E3%80%8D-pn.html
+// https://javarchive.com/1150540-FC2-PPV-4927999-%E3%80%90%E5%88%9D%E3%83%BB%E9%A1%94%E5%87%BA%E3%81%97%E3%80%91%E6%B9%A7%E3%81%8D%E5%87%BA%E3%81%99%E8%84%87%E6%B1%97%E3%81%AB%E6%81%A5%E3%81%98%E3%82%89%E3%81%8619%E6%AD%B3%E8%BE%B2%E5%A4%A7%E7%94%9F%E3%80%82%E5%8D%8A%E6%B0%97/%E7%B5%B6%E7%8A%B6%E6%85%8B%E3%81%A7%E6%98%87%E5%A4%A9%E3%81%97%E3%81%BE%E3%81%8F-pn.html
+// https://3xplanet.net/fc2-ppv-4928069/
+// https://3xplanet.com/fc2-ppv-4927068/
+// https://javideo.net/fc2ppv-4928077
+// https://javideo.net/fc2ppv-2767568
+// https://javideo.net/415las-040
+// https://javideo.net/415las-040
+// chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html#nav=8dbebce0-6edf-49e6-baf3-c1763b28ba93+editor
+// https://fd2ppv.cc/articles/4927999
+// https://fd2ppv.cc/articles/4923443
+// https://pornav.co/jp/article-384961/FC2-PPV-4923443-50-OFF-A-super-erotic-beauty-with-a-sex-friend-who-knows-each-others-bodies-inside-and-out-and-the-pre-marriage-final-session-jnynyqqs-SEX-facial-Miki-26-years-old
+// https://javip.net/fc2-ppv-4923443/#more-721714
+// https://javip.net/fc2-ppv-4927999/#more-721708
 
 // https://fc2db.net/work/4922101/
 // https://fc2db.net/works/page/1900/
