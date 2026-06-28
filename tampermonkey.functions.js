@@ -1231,19 +1231,19 @@ class NodeQuery extends Processor {
      * @generator
      * @param {Document} doc 页面文档
      * @param {Function} node 节点的值
+     * @param {URL} url 页面链接
      * @param {string|null} name 节点的名
      * @returns {AsyncGenerator<Promise<Awaited<any>>, void, *>}
      */
-    async* executeNode(doc, node, name) {
-        let result = node.call(this, doc, name);
+    async* executeNode(doc, node, url, name) {
+        let result = node.call(this, doc, url, name);
         if (result != null && result instanceof Promise) {
             result = await result;
         }
-        // noinspection JSUnresolvedReference
-        if (result != null && !isStr(result) && (isIterable(result) || isAnyGenerator(result))) {
-            for await (const element of result) {
-                yield element
-            }
+        if (result == null || isStr(result)) {
+            yield result;
+        } else if (isIterable(result) || isAnyGenerator(result)) {
+            yield* result;
         } else {
             yield result;
         }
@@ -1359,10 +1359,11 @@ class NodeQuery extends Processor {
      * @generator 标明这是一个生成器函数
      * @param {Document} doc 页面文档
      * @param {string|null} node 节点的值
+     * @param {URL} url 页面链接
      * @param {string|null} name 节点的名
      * @returns {AsyncGenerator<*, void, *>}
      */
-    async* processNode(doc, node, name = null) {
+    async* processNode(doc, node, url, name) {
         const obj = this;
         name = name ?? Object.keys(this).find(function (k) {
             return node === obj[k];
@@ -1380,10 +1381,10 @@ class NodeQuery extends Processor {
         }
         for (const element of elements) {
             if (typeof element === "function") {
-                yield* this.executeNode(doc, element, name);
+                yield* this.executeNode(doc, element, url, name);
             } else {
                 // noinspection JSCheckFunctionSignatures
-                yield* this.queryNode({doc: doc, node: element, name: name, ...element});
+                yield* this.queryNode({doc: doc, node: element, name: name, ...element, url: url});
             }
         }
     }
@@ -1392,14 +1393,16 @@ class NodeQuery extends Processor {
      * 解析获取节点的值
      * @param {Document} doc 页面文档
      * @param {*|null} node 节点的值
+     * @param {URL} url 链接
      * @param {string|null} name 节点的名
      * @returns {Promise<*>}
      */
-    async node2value(doc, node, name = null) {
+    async node2value(doc, node, url, name) {
         if (!node) {
             return null;
         }
-        for await (let element of this.processNode(doc, node, name)) {
+        name = name ?? null;
+        for await (let element of this.processNode(doc, node, url, name)) {
             if (!element) {
                 continue;
             }
@@ -1412,15 +1415,17 @@ class NodeQuery extends Processor {
      * 解析获取节点的值(列表)
      * @param {Document} doc 页面文档
      * @param {*|null} node 节点的值
+     * @param {URL} url 链接
      * @param {string|null} name 节点的名
      * @returns {Promise<Array<*>>}
      */
-    async node2values(doc, node, name = null) {
+    async node2values(doc, node, url, name) {
         const values = [];
         if (!node) {
             return values;
         }
-        for await (const element of this.processNode(doc, node, name)) {
+        name = name ?? null;
+        for await (const element of this.processNode(doc, node, url, name)) {
             if (!element) {
                 continue;
             }
