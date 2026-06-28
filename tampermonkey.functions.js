@@ -1363,7 +1363,7 @@ class NodeQuery extends Processor {
      * @param {string|null} name 节点的名
      * @returns {AsyncGenerator<*, void, *>}
      */
-    async* processNode(doc, node, url, name) {
+    async* processNode(doc, node, url, name = null) {
         const obj = this;
         name = name ?? Object.keys(this).find(function (k) {
             return node === obj[k];
@@ -1397,11 +1397,10 @@ class NodeQuery extends Processor {
      * @param {string|null} name 节点的名
      * @returns {Promise<*>}
      */
-    async node2value(doc, node, url, name) {
+    async node2value(doc, node, url, name = null) {
         if (!node) {
             return null;
         }
-        name = name ?? null;
         for await (let element of this.processNode(doc, node, url, name)) {
             if (!element) {
                 continue;
@@ -1419,12 +1418,11 @@ class NodeQuery extends Processor {
      * @param {string|null} name 节点的名
      * @returns {Promise<Array<*>>}
      */
-    async node2values(doc, node, url, name) {
+    async node2values(doc, node, url, name = null) {
         const values = [];
         if (!node) {
             return values;
         }
-        name = name ?? null;
         for await (const element of this.processNode(doc, node, url, name)) {
             if (!element) {
                 continue;
