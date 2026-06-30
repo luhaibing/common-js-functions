@@ -745,8 +745,9 @@ function response2document(value) {
         return null;
     }
     let node = doc.querySelector("head > base");
+    let url = parseURL(finalUrl);
     if (!node) {
-        const {origin} = parseURL(finalUrl);
+        const {origin} = url;
         node = doc.createElement("base");
         node.setAttribute("href", origin);
         doc.head.appendChild(node);
@@ -754,6 +755,8 @@ function response2document(value) {
     if (!doc.URL.startsWith(doc.baseURI)) {
         doc.URL = finalUrl;
     }
+    doc.href = finalUrl;
+    doc.url = url;
     return doc;
 }
 
