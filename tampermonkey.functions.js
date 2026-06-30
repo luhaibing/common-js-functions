@@ -878,9 +878,9 @@ function xmlhttpRequest(value, options = {}) {
         }
     } else if (method === "POST") {
         responseType = responseType ?? "json";
-        headers = Object.assign(headers || {}, {
+        headers = Object.assign({
             "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-        });
+        }, headers || {});
     }
 
     timeout = timeout || Math.round(10 ** 3 * 60 * 1.5);
@@ -981,16 +981,15 @@ function request(value, tries, options = {}) {
  * @returns {Promise<Document>}
  */
 function fetch(value, tries, options = {}) {
-    const headers = {
-        "referrer": location.href,
+    options.headers = Object.assign({
+        "Referrer": location.href,
         "Cache-Control": "no-cache",
         "Content-Type": "text/html;charset=" + document.characterSet,
-    };
-    options.headers = Object.assign(options.headers || {}, headers);
-    options = Object.assign(options, {
+    }, options.headers);
+    options = Object.assign({
         method: "GET",
         overrideMimeType: "text/html;charset=" + document.characterSet,
-    });
+    }, options);
     return request(value, tries, options)
         .then(function (res) {
             return response2document(res);
@@ -1006,16 +1005,15 @@ function fetch(value, tries, options = {}) {
  * @returns {Promise<*>}
  */
 function stream(value, tries, options = {}) {
-    const headers = {
-        "referrer": location.href,
+    options.headers = Object.assign({
+        "Referrer": location.href,
         "Cache-Control": "no-cache",
         "Content-Type": "text/html;charset=" + document.characterSet,
-    };
-    options.headers = Object.assign(options.headers || {}, headers);
-    options = Object.assign(options, {
+    }, options.headers || {});
+    options = Object.assign({
         method: "GET",
         overrideMimeType: "text/plain;charset=x-user-defined",
-    });
+    }, options);
     return request(value, tries, options);
 }
 
